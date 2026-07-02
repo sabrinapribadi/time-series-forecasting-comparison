@@ -80,11 +80,11 @@ def download_file(url: str, dest_path: Path) -> bool:
         
         urllib.request.urlretrieve(url, dest_path, report_hook)
         print()  # Newline after progress
-        logger.info(f"  ✓ Downloaded successfully ({dest_path.stat().st_size/1024:.1f} KB)")
+        logger.info(f"  [OK] Downloaded successfully ({dest_path.stat().st_size/1024:.1f} KB)")
         return True
         
     except Exception as e:
-        logger.error(f"  ✗ Failed to download: {e}")
+        logger.error(f"  [ERROR] Failed to download: {e}")
         return False
 
 
@@ -143,7 +143,7 @@ def validate_dataset(variant: str) -> bool:
         if not all(col in df.columns for col in expected_cols):
             logger.warning(f"  {variant}: Unexpected columns. Found: {df.columns.tolist()}")
         
-        logger.info(f"  {variant}: ✓ Valid - {len(df)} rows, {len(df.columns)} columns")
+        logger.info(f"  {variant}: Valid - {len(df)} rows, {len(df.columns)} columns")
         logger.info(f"  Columns: {', '.join(df.columns[:4])}... (total {len(df.columns)})")
         logger.info(f"  Date range: {df['date'].iloc[0]} to {df['date'].iloc[-1]}")
         
@@ -225,7 +225,7 @@ Examples:
     logger.info("=" * 60)
     
     if success_count == len(variants):
-        logger.info("✓ All downloads complete!")
+        logger.info("All downloads complete.")
         
         # Show next steps
         logger.info("\nNext steps:")

@@ -139,12 +139,12 @@ def main():
         
         # Print results
         logger.info(f"  File: ETT{variant[0]}{variant[1]}.csv")
-        logger.info(f"  Exists: {'✓' if results['file_exists'] else '✗'}")
+        logger.info(f"  Exists: {'[OK]' if results['file_exists'] else '[MISSING]'}")
         if results['file_exists']:
             logger.info(f"  Size: {results['file_size_kb']:.1f} KB")
             logger.info(f"  Rows: {results['rows']:,}")
             logger.info(f"  Columns: {len(results['columns'])}")
-            logger.info(f"  Expected columns present: {'✓' if results['columns_valid'] else '✗'}")
+            logger.info(f"  Expected columns present: {'[OK]' if results['columns_valid'] else '[FAIL]'}")
             
             if results.get('date_range'):
                 logger.info(f"  Date range: {results['date_range']['start']} to {results['date_range']['end']}")
@@ -160,18 +160,18 @@ def main():
             if missing:
                 logger.warning(f"  Missing values: {missing}")
             else:
-                logger.info("  Missing values: None ✓")
-            
+                logger.info("  Missing values: None")
+
             if results['errors']:
                 logger.error(f"  Errors: {', '.join(results['errors'])}")
             else:
-                logger.info(f"  Status: ✓ VALID")
+                logger.info("  Status: VALID")
         
         all_valid = all_valid and results['valid']
     
     logger.info("\n" + "=" * 60)
     if all_valid:
-        logger.info("✓ All datasets validated successfully!")
+        logger.info("All datasets validated successfully.")
     else:
         logger.warning("Some datasets failed validation. Check the errors above.")
     
