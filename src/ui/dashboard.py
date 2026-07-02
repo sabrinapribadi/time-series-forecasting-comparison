@@ -586,11 +586,12 @@ sel_df = metrics_df.loc[metrics_df.index.isin(selected_keys)].copy()
 # Tab layout
 # ---------------------------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Benchmark Results",
     "Forecast Gallery",
     "Model Inspector",
     "Data Explorer",
+    "Statistical Tests",
     "Ask AI",
 ])
 
@@ -1036,16 +1037,118 @@ with tab3:
                 st.plotly_chart(fig_sc, use_container_width=True)
 
             # ------------------------------------------------------------------
-            # AI Explainability — natural-language explanation of model behaviour
+            # Feature Importance — from saved model checkpoint (ML models only)
             # ------------------------------------------------------------------
             st.divider()
-            st.markdown("##### AI Explainability")
+            st.markdown("##### Feature Importance")
+
+            ML_MODELS_SET = {"random_forest", "xgboost", "lightgbm", "catboost"}
+            checkpoint_path = PROJECT_ROOT / "models" / f"{sel_run_key}.joblib"
+
+            if sel_model_key in ML_MODELS_SET and checkpoint_path.exists():
+                st.markdown(
+                    '<div class="context-card" style="font-size:0.82rem;">'
+                    "Feature importances loaded from the saved model checkpoint (<code>models/{}.joblib</code>). "
+                    "For tree-based models this is the <strong>mean decrease in impurity</strong> (MDI) — "
+                    "how much each feature reduces prediction error across all trees. "
+                    "Lag features (OT_lag_1/2/24) typically dominate because they directly encode "
+                    "the most recent OT signal."
+                    "</div>".format(sel_run_key),
+                    unsafe_allow_html=True,
+                )
+                try:
+                    import joblib as _joblib
+                    _model_obj = _joblib.load(checkpoint_path)
+                    # Extract the underlying sklearn/boosting estimator
+                    _estimator = getattr(_model_obj, "model", _model_obj)
+                    _importances = getattr(_estimator, "feature_importances_", None)
+
+                    if _importances is not None:
+                        # Derive feature names from a univariate ETTh1 run
+                        _feat_names_uni = [
+                            "hour_sin", "hour_cos", "dow_sin", "dow_cos", "month_sin", "month_cos",
+                            "OT_lag_1", "OT_lag_2", "OT_lag_24",
+                            "OT_rolling_mean_3", "OT_rolling_std_3", "OT_growth_rate", "OT_trend_3",
+                        ]
+                        _load_feats = ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL"]
+                        _feat_names_mv = _feat_names_uni + _load_feats
+
+                        if len(_importances) == len(_feat_names_mv):
+                            _feat_names = _feat_names_mv
+                        elif len(_importances) == len(_feat_names_uni):
+                            _feat_names = _feat_names_uni
+                        else:
+                            _feat_names = [f"feature_{i}" for i in range(len(_importances))]
+
+                        _fi_df = pd.DataFrame({"Feature": _feat_names, "Importance": _importances})
+                        _fi_df = _fi_df.sort_values("Importance", ascending=True)
+
+                        # Colour: highlight lag features vs time features vs rolling
+                        def _fi_color(name):
+                            if "lag" in name:
+                                return "#4C8BF5"
+                            if any(x in name for x in ["rolling", "growth", "trend"]):
+                                return "#F5A623"
+                            if name in _load_feats:
+                                return "#9B8FFF"
+                            return "#56D364"
+
+                        fig_fi = go.Figure(go.Bar(
+                            x=_fi_df["Importance"].tolist(),
+                            y=_fi_df["Feature"].tolist(),
+                            orientation="h",
+                            marker_color=[_fi_color(n) for n in _fi_df["Feature"].tolist()],
+                            hovertemplate="%{y}: %{x:.4f}<extra></extra>",
+                        ))
+                        # Legend swatches
+                        for lname, lcolor in [
+                            ("Lag features", "#4C8BF5"),
+                            ("Rolling / trend", "#F5A623"),
+                            ("Load covariates (MV)", "#9B8FFF"),
+                            ("Cyclical time", "#56D364"),
+                        ]:
+                            fig_fi.add_trace(go.Scatter(
+                                x=[None], y=[None], mode="markers",
+                                marker=dict(size=9, color=lcolor, symbol="square"),
+                                name=lname, showlegend=True,
+                            ))
+                        fig_fi.update_layout(
+                            template=PLOTLY_TEMPLATE,
+                            xaxis_title="Importance (MDI)",
+                            height=max(280, len(_fi_df) * 22 + 80),
+                            margin=dict(t=20, b=60, l=130, r=20),
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+                        )
+                        st.plotly_chart(fig_fi, use_container_width=True)
+                    else:
+                        st.info("Model loaded but no feature_importances_ attribute found.")
+                except Exception as e:
+                    st.warning(f"Could not load checkpoint: {e}")
+
+            elif sel_model_key not in ML_MODELS_SET:
+                st.markdown(
+                    '<div class="context-card" style="font-size:0.82rem;">'
+                    f"<strong>{sel_meta.get('label', sel_label)}</strong> is a "
+                    f"<strong>{fam}</strong> model — feature importance in the tabular sense "
+                    "does not apply. Statistical models operate on the raw OT series; "
+                    "deep learning models encode sequence patterns through weights across "
+                    "all time steps rather than discrete feature contributions."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.caption(f"Model checkpoint not found at `models/{sel_run_key}.joblib`. Run `make train-all` to generate checkpoints.")
+
+            # ------------------------------------------------------------------
+            # AI Explainability — LLM narrative (supplements feature importance)
+            # ------------------------------------------------------------------
+            st.divider()
+            st.markdown("##### AI Explanation")
             st.markdown(
                 '<div class="context-card" style="font-size:0.82rem;">'
-                "Uses GPT-4o mini to interpret the model's performance profile: "
-                "metric values vs. benchmark average, residual shape, and algorithmic "
-                "constraints. Produces a plain-language diagnosis of <em>why</em> this "
-                "model performs the way it does on ETTh1."
+                "GPT-4o mini generates a plain-language diagnosis linking metrics, "
+                "residual statistics, and the algorithm's mechanics — contextualising "
+                "<em>why</em> this model achieves its RMSE and when to use it in production."
                 "</div>",
                 unsafe_allow_html=True,
             )
@@ -1256,11 +1359,347 @@ with tab4:
         )
         st.plotly_chart(fig_corr, use_container_width=True)
 
+        # Feature definitions table
+        st.markdown("#### Feature Definitions")
+        feat_def_data = {
+            "Column": ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"],
+            "Full Name": [
+                "High Voltage Useful Load",
+                "High Voltage Useless Load",
+                "Mid Voltage Useful Load",
+                "Mid Voltage Useless Load",
+                "Low Voltage Useful Load",
+                "Low Voltage Useless Load",
+                "Oil Temperature",
+            ],
+            "Voltage Level": ["High", "High", "Mid", "Mid", "Low", "Low", "—"],
+            "Load Type": ["Active (W)", "Reactive (VAR)", "Active (W)", "Reactive (VAR)", "Active (W)", "Reactive (VAR)", "—"],
+            "Unit": ["MW", "MW", "MW", "MW", "MW", "MW", "°C"],
+            "Role": ["Covariate", "Covariate", "Covariate", "Covariate", "Covariate", "Covariate", "Target (OT)"],
+            "Notes": [
+                "Real power drawn by high-voltage consumers",
+                "Reactive power — phase lag losses at high voltage",
+                "Real power at medium-voltage distribution level",
+                "Reactive power at medium-voltage level",
+                "Real power at low-voltage (residential) level",
+                "Reactive power at low-voltage level",
+                "Transformer core temperature — rises with load; forecasting target",
+            ],
+        }
+        feat_def_df = pd.DataFrame(feat_def_data)
+        st.dataframe(feat_def_df.set_index("Column"), use_container_width=True)
+        st.markdown(
+            '<div class="context-card" style="font-size:0.80rem;">'
+            "<strong>Useful (active) load</strong> is real power consumed (kW/MW). "
+            "<strong>Useless (reactive) load</strong> is the imaginary component of AC power — "
+            "it does no useful work but heats conductors and stresses the transformer. "
+            "The correlation matrix shows MUFL–HUFL ≈ 0.99 and MULL–HULL ≈ 0.93: high and mid-voltage "
+            "useful loads are nearly identical, suggesting the same aggregate load measured at two points. "
+            "OT's low correlation with all load columns (0.05–0.22) is because temperature "
+            "accumulates thermally with a time lag — the Granger causality test (Statistical Tests tab) "
+            "reveals the true temporal relationship."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
 # ===========================================================================
-# TAB 5 — Ask AI (RAG)
+# TAB 5 — Statistical Tests
 # ===========================================================================
 
 with tab5:
+    st.markdown("## Statistical Tests")
+    st.markdown(
+        '<div class="context-card">'
+        "Rigorous statistical analysis of the ETT dataset and benchmark results. "
+        "Tests covered: (1) <strong>Stationarity</strong> — ADF and KPSS tests on OT; "
+        "(2) <strong>Granger Causality</strong> — do load columns predict OT?; "
+        "(3) <strong>ACF / PACF</strong> — autocorrelation structure of OT; "
+        "(4) <strong>Diebold-Mariano</strong> — pairwise statistical significance of model differences."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    _ett_st = load_ett_data("h1")
+
+    if _ett_st is None:
+        st.warning("ETTh1.csv not found — download with `python scripts/download_data.py`.")
+    else:
+        ot_series = _ett_st["OT"].dropna().values
+
+        # -----------------------------------------------------------------------
+        # Section 1: Stationarity tests
+        # -----------------------------------------------------------------------
+        st.markdown("### 1. Stationarity of OT (Oil Temperature)")
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem;">'
+            "<strong>ADF (Augmented Dickey-Fuller)</strong>: H₀ = unit root (non-stationary). "
+            "Reject H₀ (p &lt; 0.05) → OT is stationary. "
+            "<strong>KPSS</strong>: H₀ = level-stationary. "
+            "Fail to reject H₀ (p &gt; 0.05) → OT is stationary. "
+            "If ADF rejects AND KPSS fails to reject, both agree the series is stationary — "
+            "meaning statistical models can be applied without differencing."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        try:
+            from statsmodels.tsa.stattools import adfuller, kpss
+
+            adf_result = adfuller(ot_series, autolag="AIC")
+            adf_stat, adf_p, adf_lags = adf_result[0], adf_result[1], adf_result[2]
+            adf_conclusion = "Stationary (reject H₀)" if adf_p < 0.05 else "Non-stationary (fail to reject H₀)"
+
+            kpss_result = kpss(ot_series, regression="c", nlags="auto")
+            kpss_stat, kpss_p = kpss_result[0], kpss_result[1]
+            kpss_conclusion = "Stationary (fail to reject H₀)" if kpss_p > 0.05 else "Non-stationary (reject H₀)"
+
+            st_col1, st_col2 = st.columns(2)
+            with st_col1:
+                adf_color = "#56D364" if adf_p < 0.05 else "#FF6B6B"
+                st.markdown(
+                    f'<div class="context-card">'
+                    f"<strong>ADF Test</strong><br>"
+                    f"Statistic: {adf_stat:.4f}<br>"
+                    f"p-value: <span style='color:{adf_color}; font-weight:600'>{adf_p:.4f}</span><br>"
+                    f"Lags used: {adf_lags}<br>"
+                    f"Conclusion: <strong>{adf_conclusion}</strong>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+            with st_col2:
+                kpss_color = "#56D364" if kpss_p > 0.05 else "#FF6B6B"
+                st.markdown(
+                    f'<div class="context-card">'
+                    f"<strong>KPSS Test</strong><br>"
+                    f"Statistic: {kpss_stat:.4f}<br>"
+                    f"p-value: <span style='color:{kpss_color}; font-weight:600'>{kpss_p:.4f}</span><br>"
+                    f"(truncated at 0.01 / 0.10 by statsmodels)<br>"
+                    f"Conclusion: <strong>{kpss_conclusion}</strong>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+        except Exception as e:
+            st.error(f"Stationarity tests failed: {e}")
+
+        st.divider()
+
+        # -----------------------------------------------------------------------
+        # Section 2: ACF / PACF
+        # -----------------------------------------------------------------------
+        st.markdown("### 2. Autocorrelation (ACF) and Partial Autocorrelation (PACF) of OT")
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem;">'
+            "<strong>ACF</strong> measures correlation between OT at time t and OT at time t-k. "
+            "Strong peaks at lag 24 and 168 confirm daily and weekly seasonality. "
+            "<strong>PACF</strong> shows the correlation after removing intermediate lags — "
+            "PACF cutting off after lag p suggests an AR(p) model; slowly decaying PACF suggests MA."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        max_lag_acf = 72
+        acf_vals = [1.0]
+        pacf_vals = [1.0]
+        ot_centered = ot_series - ot_series.mean()
+        var0 = float(np.var(ot_centered))
+
+        for lag in range(1, max_lag_acf + 1):
+            r = float(np.corrcoef(ot_centered[lag:], ot_centered[:-lag])[0, 1])
+            acf_vals.append(r)
+
+        # PACF via Yule-Walker (iterative)
+        from numpy.linalg import solve as _np_solve
+        _acf_arr = np.array(acf_vals)
+        _phi = {}
+        _phi[1] = [_acf_arr[1]]
+        for k in range(2, min(max_lag_acf + 1, 49)):
+            R = np.array([[_acf_arr[abs(i - j)] for j in range(k)] for i in range(k)])
+            r = _acf_arr[1:k + 1]
+            try:
+                sol = _np_solve(R, r)
+                _phi[k] = sol.tolist()
+            except Exception:
+                _phi[k] = [0.0] * k
+        pacf_vals = [1.0] + [_phi[k][-1] if k in _phi else 0.0 for k in range(1, min(max_lag_acf + 1, 49))]
+
+        conf_bound = 1.96 / np.sqrt(len(ot_series))
+        lags_ax = list(range(len(acf_vals)))
+
+        fig_acf = make_subplots(rows=1, cols=2, subplot_titles=["ACF", "PACF"])
+        for col_idx, (vals, name) in enumerate([(acf_vals, "ACF"), (pacf_vals, "PACF")], 1):
+            n = len(vals)
+            lx = list(range(n))
+            fig_acf.add_trace(go.Bar(x=lx, y=vals, name=name, marker_color="#4C8BF5", showlegend=False,
+                                     hovertemplate=f"Lag %{{x}}: {name}=%{{y:.3f}}<extra></extra>"), row=1, col=col_idx)
+            fig_acf.add_hline(y=conf_bound, line_dash="dash", line_color="#56D364", row=1, col=col_idx)
+            fig_acf.add_hline(y=-conf_bound, line_dash="dash", line_color="#56D364", row=1, col=col_idx)
+            fig_acf.add_hline(y=0, line_color="#30363D", row=1, col=col_idx)
+
+        fig_acf.update_layout(
+            template=PLOTLY_TEMPLATE, height=320,
+            margin=dict(t=40, b=50, l=50, r=20),
+            annotations=[dict(text="Green dashed = 95% confidence band (±1.96/√n)",
+                              xref="paper", yref="paper", x=0, y=-0.15,
+                              showarrow=False, font=dict(size=9, color="#8B949E"))],
+        )
+        fig_acf.update_xaxes(title_text="Lag (hours)")
+        st.plotly_chart(fig_acf, use_container_width=True)
+
+        st.divider()
+
+        # -----------------------------------------------------------------------
+        # Section 3: Granger Causality
+        # -----------------------------------------------------------------------
+        st.markdown("### 3. Granger Causality — Do Load Columns Predict OT?")
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem;">'
+            "The Granger causality test asks: <em>does knowing past values of X improve "
+            "our prediction of Y beyond knowing Y's own past?</em> "
+            "H₀: X does not Granger-cause OT. p &lt; 0.05 → reject H₀ → X is informative for forecasting OT. "
+            "This justifies including load columns as multivariate covariates for ML models."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        try:
+            from statsmodels.tsa.stattools import grangercausalitytests as _granger
+
+            load_cols_gc = ["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL"]
+            gc_lags = [1, 6, 24]
+            gc_rows = []
+
+            for lc in load_cols_gc:
+                xy = _ett_st[[lc, "OT"]].dropna().values
+                row = {"Feature": lc}
+                try:
+                    gc_res = _granger(xy, maxlag=max(gc_lags), verbose=False)
+                    for lg in gc_lags:
+                        p = gc_res[lg][0]["ssr_ftest"][1]
+                        row[f"p (lag {lg}h)"] = round(p, 4)
+                        row[f"sig {lg}h"] = "***" if p < 0.001 else ("**" if p < 0.01 else ("*" if p < 0.05 else "—"))
+                except Exception:
+                    for lg in gc_lags:
+                        row[f"p (lag {lg}h)"] = "err"
+                        row[f"sig {lg}h"] = "err"
+                gc_rows.append(row)
+
+            gc_df = pd.DataFrame(gc_rows).set_index("Feature")
+            cols_order = []
+            for lg in gc_lags:
+                cols_order += [f"p (lag {lg}h)", f"sig {lg}h"]
+            st.dataframe(gc_df[cols_order], use_container_width=True)
+            st.caption("* p<0.05  ** p<0.01  *** p<0.001  — = not significant")
+        except Exception as e:
+            st.error(f"Granger causality test failed: {e}")
+
+        st.divider()
+
+        # -----------------------------------------------------------------------
+        # Section 4: Diebold-Mariano Model Comparison
+        # -----------------------------------------------------------------------
+        st.markdown("### 4. Diebold-Mariano Test — Are Model Differences Statistically Significant?")
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem;">'
+            "The <strong>Diebold-Mariano (DM) test</strong> asks: is model A's forecast accuracy "
+            "statistically significantly different from model B's? "
+            "H₀: equal predictive accuracy. DM statistic ~ N(0,1) under H₀. "
+            "p &lt; 0.05 → the difference in RMSE between these two models is unlikely due to chance."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        def diebold_mariano(e1: np.ndarray, e2: np.ndarray) -> tuple[float, float]:
+            d = e1 ** 2 - e2 ** 2
+            n = len(d)
+            d_mean = d.mean()
+            # Newey-West variance at lag h=1
+            gamma0 = np.mean((d - d_mean) ** 2)
+            gamma1 = np.mean((d[1:] - d_mean) * (d[:-1] - d_mean))
+            nw_var = (gamma0 + 2 * gamma1) / n
+            if nw_var <= 0:
+                return 0.0, 1.0
+            dm_stat = d_mean / np.sqrt(nw_var)
+            from scipy import stats as _scipy_stats
+            p_val = 2 * (1 - _scipy_stats.norm.cdf(abs(dm_stat)))
+            return float(dm_stat), float(p_val)
+
+        dm_models = [k for k in selected_keys if results[k].get("y_pred")]
+        if len(dm_models) < 2:
+            st.info("Select at least 2 models in the sidebar to run DM tests.")
+        else:
+            dm_col_a, dm_col_b = st.columns(2)
+            dm_model_labels = {display_name(k, results[k].get("_model_key", k)): k for k in dm_models}
+            model_a_label = dm_col_a.selectbox("Model A", list(dm_model_labels.keys()), key="dm_a")
+            remaining = [l for l in dm_model_labels if l != model_a_label]
+            model_b_label = dm_col_b.selectbox("Model B", remaining, key="dm_b")
+
+            key_a = dm_model_labels[model_a_label]
+            key_b = dm_model_labels[model_b_label]
+            e1 = np.array(results[key_a]["y_true"]) - np.array(results[key_a]["y_pred"])
+            e2 = np.array(results[key_b]["y_true"]) - np.array(results[key_b]["y_pred"])
+            min_len = min(len(e1), len(e2))
+            dm_stat, dm_p = diebold_mariano(e1[:min_len], e2[:min_len])
+            rmse_a = results[key_a].get("metrics", {}).get("RMSE", float("nan"))
+            rmse_b = results[key_b].get("metrics", {}).get("RMSE", float("nan"))
+            winner = model_a_label if rmse_a < rmse_b else model_b_label
+
+            sig_color = "#56D364" if dm_p < 0.05 else "#FF6B6B"
+            conclusion = (
+                f"<strong>Significant</strong> at p={dm_p:.4f} — {winner} is statistically better (p&lt;0.05)"
+                if dm_p < 0.05
+                else f"<strong>Not significant</strong> at p={dm_p:.4f} — cannot reject equal accuracy"
+            )
+            st.markdown(
+                f'<div class="context-card">'
+                f"<strong>{model_a_label}</strong> RMSE = {rmse_a:.4f} &nbsp;|&nbsp; "
+                f"<strong>{model_b_label}</strong> RMSE = {rmse_b:.4f}<br>"
+                f"DM statistic = {dm_stat:.4f}<br>"
+                f"p-value = <span style='color:{sig_color}; font-weight:600'>{dm_p:.4f}</span><br>"
+                f"{conclusion}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # DM heatmap for all selected pairs
+            if st.checkbox("Show full pairwise DM p-value matrix", value=False):
+                n_m = len(dm_models)
+                dm_matrix = np.ones((n_m, n_m))
+                labels_dm = [display_name(k, results[k].get("_model_key", k)) for k in dm_models]
+                for i, ki in enumerate(dm_models):
+                    for j, kj in enumerate(dm_models):
+                        if i != j:
+                            ei = np.array(results[ki]["y_true"]) - np.array(results[ki]["y_pred"])
+                            ej = np.array(results[kj]["y_true"]) - np.array(results[kj]["y_pred"])
+                            mlen = min(len(ei), len(ej))
+                            _, pv = diebold_mariano(ei[:mlen], ej[:mlen])
+                            dm_matrix[i, j] = pv
+
+                fig_dm = go.Figure(go.Heatmap(
+                    z=dm_matrix,
+                    x=labels_dm, y=labels_dm,
+                    colorscale=[[0, "#56D364"], [0.05, "#56D364"], [0.05, "#161B22"], [1, "#161B22"]],
+                    zmin=0, zmax=1,
+                    text=np.round(dm_matrix, 3).astype(str),
+                    texttemplate="%{text}",
+                    textfont=dict(size=9),
+                    hovertemplate="Row=%{y}<br>Col=%{x}<br>p=%{z:.4f}<extra></extra>",
+                ))
+                fig_dm.update_layout(
+                    template=PLOTLY_TEMPLATE, height=400,
+                    margin=dict(t=30, b=80, l=120, r=20),
+                    annotations=[dict(
+                        text="Green = p<0.05 (significant difference). Diagonal = same model (p=1).",
+                        xref="paper", yref="paper", x=0, y=-0.18,
+                        showarrow=False, font=dict(size=9, color="#8B949E"),
+                    )],
+                )
+                st.plotly_chart(fig_dm, use_container_width=True)
+
+# ===========================================================================
+# TAB 6 — Ask AI (RAG)  [was tab5]
+# ===========================================================================
+
+with tab6:
     st.markdown("## Ask AI")
     st.markdown(
         '<div class="context-card">'
