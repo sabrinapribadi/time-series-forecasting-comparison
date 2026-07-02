@@ -1,0 +1,152 @@
+# ============================================================
+# Optuna hyperparameter search spaces
+# ============================================================
+# Trial counts mirror IOH AOP2026 production practice:
+#   holt_winters  — 15 trials, minimize RMSE on train-fit residuals
+#   random_forest — 10 trials, maximize R² on validation
+#   catboost      —  8 trials, maximize R² on validation
+#   xgboost       — 50 trials, maximize R² on validation
+#   lightgbm      — fixed IOH production params, no Optuna
+#
+# Run via: python scripts/train_model.py --model <name> --tune
+
+optuna:
+  timeout_seconds: 3600   # 1 hour max per model
+
+  holt_winters:
+    n_trials: 15
+    direction: minimize
+    metric: RMSE_train_residuals
+    trend:
+      type: categorical
+      choices: [add, mul, null]
+    seasonal:
+      type: categorical
+      choices: [add, mul, null]
+    damped_trend:
+      type: categorical
+      choices: [true, false]
+
+  random_forest:
+    n_trials: 10
+    direction: maximize
+    metric: R2_val
+    n_estimators:
+      type: int
+      low: 50
+      high: 500
+      step: 50
+    max_depth:
+      type: categorical
+      choices: [null, 5, 10, 15, 20]
+    min_samples_split:
+      type: int
+      low: 2
+      high: 20
+    min_samples_leaf:
+      type: int
+      low: 1
+      high: 10
+
+  xgboost:
+    n_trials: 50
+    direction: maximize
+    metric: R2_val
+    n_estimators:
+      type: int
+      low: 100
+      high: 1000
+      step: 50
+    max_depth:
+      type: int
+      low: 3
+      high: 10
+    learning_rate:
+      type: float
+      low: 0.005
+      high: 0.3
+      log: true
+    subsample:
+      type: float
+      low: 0.5
+      high: 1.0
+    colsample_bytree:
+      type: float
+      low: 0.5
+      high: 1.0
+    min_child_weight:
+      type: int
+      low: 1
+      high: 10
+
+  lightgbm:
+    # IOH AOP2026 production params — no Optuna tuning
+    fixed: true
+    n_estimators: 500
+    num_leaves: 31
+    learning_rate: 0.05
+    reg_alpha: 0.1
+    reg_lambda: 0.1
+    subsample: 0.8
+
+  catboost:
+    n_trials: 8
+    direction: maximize
+    metric: R2_val
+    iterations:
+      type: int
+      low: 100
+      high: 1000
+      step: 50
+    depth:
+      type: int
+      low: 4
+      high: 10
+    learning_rate:
+      type: float
+      low: 0.005
+      high: 0.3
+      log: true
+    l2_leaf_reg:
+      type: float
+      low: 1.0
+      high: 10.0
+
+  lstm:
+    n_trials: 20
+    direction: minimize
+    metric: RMSE_val
+    hidden_size:
+      type: categorical
+      choices: [32, 64, 128, 256]
+    num_layers:
+      type: int
+      low: 1
+      high: 4
+    dropout:
+      type: float
+      low: 0.0
+      high: 0.5
+    lr:
+      type: float
+      low: 0.0001
+      high: 0.01
+      log: true
+    batch_size:
+      type: categorical
+      choices: [32, 64, 128]
+
+  prophet:
+    n_trials: 20
+    direction: minimize
+    metric: RMSE_val
+    changepoint_prior_scale:
+      type: float
+      low: 0.001
+      high: 0.5
+      log: true
+    seasonality_prior_scale:
+      type: float
+      low: 0.01
+      high: 10.0
+      log: true

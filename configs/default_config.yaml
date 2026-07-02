@@ -1,0 +1,131 @@
+# ============================================================
+# Default configuration for time-series-forecasting-comparison
+# ============================================================
+
+# ----- Dataset -----
+data:
+  variant: h1                 # ETT variant: h1, h2, m1, m2
+  target: OT                  # Target column (Oil Temperature)
+  train_ratio: 0.70
+  val_ratio: 0.10
+  test_ratio: 0.20
+  add_time_features: true     # Cyclical sin/cos encodings (ADR-002)
+  add_lag_features: false     # Set true for ML models (ADR-005)
+  lag_steps: [1, 2, 24]       # Hourly lags; use [1, 4, 96] for 15-min
+
+# ----- Forecasting horizon -----
+horizon: 24                   # Steps ahead to predict (24h = 1 day)
+
+# ----- Models to run (comment out to skip) -----
+models:
+  statistical:
+    - holt_winters
+    - arima
+    - prophet
+  ml:
+    - random_forest
+    - xgboost
+    - lightgbm
+    - catboost
+  deep_learning:
+    - lstm
+    - transformer
+    - nbeats
+    - tft
+
+# ----- Model-specific defaults -----
+model_params:
+  holt_winters:
+    trend: add
+    seasonal: add
+    seasonal_periods: 24
+    damped_trend: false
+
+  arima:
+    auto: true
+    seasonal: false
+    m: 1
+
+  prophet:
+    yearly_seasonality: true
+    weekly_seasonality: true
+    daily_seasonality: true
+    changepoint_prior_scale: 0.05
+
+  random_forest:
+    n_estimators: 200
+    max_depth: null
+    n_jobs: -1
+    random_state: 42
+
+  xgboost:
+    n_estimators: 300
+    max_depth: 6
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    random_state: 42
+
+  lightgbm:
+    n_estimators: 300
+    learning_rate: 0.05
+    num_leaves: 31
+    subsample: 0.8
+    random_state: 42
+
+  catboost:
+    iterations: 300
+    depth: 6
+    learning_rate: 0.05
+    random_seed: 42
+
+  lstm:
+    input_len: 96
+    horizon: 24
+    hidden_size: 64
+    num_layers: 2
+    dropout: 0.1
+    lr: 0.001
+    epochs: 30
+    batch_size: 64
+
+  transformer:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 2
+    num_decoder_layers: 2
+    dropout: 0.1
+    n_epochs: 30
+    batch_size: 64
+
+  nbeats:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    num_stacks: 30
+    num_blocks: 1
+    num_layers: 4
+    layer_widths: 256
+    n_epochs: 30
+    batch_size: 64
+
+  tft:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    hidden_size: 64
+    lstm_layers: 2
+    num_attention_heads: 4
+    dropout: 0.1
+    n_epochs: 30
+    batch_size: 64
+
+# ----- Evaluation -----
+evaluation:
+  metrics: [RMSE, MAE, MAPE, SMAPE, MASE, R2]
+  primary_metric: RMSE
+  seasonality: 24             # For MASE naive baseline (24 = daily, 1 step/hour)
+
+# ----- Logging -----
+logging:
+  level: INFO

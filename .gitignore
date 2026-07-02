@@ -12,25 +12,18 @@ venv.bak/
 .venv/
 poetry.lock
 
-# Data
-data/raw/*.csv
-data/raw/*.parquet
-data/processed/*.csv
-data/processed/*.parquet
-data/forecasts/*.csv
-data/forecasts/*.parquet
+# Data — ETT CSV and forecast JSON are committed; processed/ is not
+data/raw/**/*.csv
+data/raw/**/*.parquet
+data/processed/
 *.parquet
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-!data/forecasts/.gitkeep
+# Allow ETT source data and pre-computed dashboard results
+!data/raw/ETT/*.csv
+!data/forecasts/ETT/*.json
 
-# Models
-models/*.pkl
-models/*.joblib
-models/*.h5
-models/*.pt
-models/*.pth
-!models/.gitkeep
+# Model checkpoints — gitignored (too large for git)
+/models/
+catboost_info/
 
 # Outputs
 outputs/
