@@ -1080,28 +1080,36 @@ with tab3:
                     else:
                         resid_autocorr = 0.0
 
+                    avg_rmse_str = f"{avg_rmse:.4f}" if avg_rmse else "N/A"
+                    rank_rmse_str = str(rank_rmse) if rank_rmse else "N/A"
+                    autocorr_label = (
+                        "structured residuals — model misses a pattern"
+                        if abs(resid_autocorr) > 0.3
+                        else "near-random residuals — well-calibrated"
+                    )
+                    metrics_lines = "\n".join(f"  {k}: {v:.4f}" for k, v in m_dict_full.items())
+
                     explain_prompt = (
-                        f"You are an expert data scientist explaining a time series forecasting result to a "
-                        f"technical but non-specialist audience.\n\n"
+                        "You are an expert data scientist explaining a time series forecasting result to a "
+                        "technical but non-specialist audience.\n\n"
                         f"MODEL: {sel_meta.get('label', sel_label)} ({sel_meta.get('family', fam)} family)\n"
                         f"ALGORITHM: {sel_meta.get('algorithm', '')}\n"
-                        f"DATASET: ETTh1 (hourly electricity transformer temperature, 17,420 rows, 70/10/20 split)\n"
-                        f"TARGET: OT (oil temperature, °C)\n\n"
-                        f"BENCHMARK METRICS (test set):\n"
-                        + "\n".join(f"  {k}: {v:.4f}" for k, v in m_dict_full.items())
-                        + f"\n\nCONTEXT:\n"
-                        f"  Average RMSE across all 11 models: {avg_rmse:.4f if avg_rmse else 'N/A'}\n"
-                        f"  This model's RMSE rank: {rank_rmse} of {len(metrics_df)} (lower = better)\n"
+                        "DATASET: ETTh1 (hourly electricity transformer temperature, 17,420 rows, 70/10/20 split)\n"
+                        "TARGET: OT (oil temperature, °C)\n\n"
+                        "BENCHMARK METRICS (test set):\n"
+                        + metrics_lines
+                        + "\n\nCONTEXT:\n"
+                        f"  Average RMSE across all 11 models: {avg_rmse_str}\n"
+                        f"  This model's RMSE rank: {rank_rmse_str} of {len(metrics_df)} (lower = better)\n"
                         f"  Residual mean (bias): {residual_mean:.4f} °C\n"
                         f"  Residual std: {residual_std:.4f} °C\n"
-                        f"  Residual autocorrelation at lag-1: {resid_autocorr:.3f} "
-                        f"({'structured residuals — model misses a pattern' if abs(resid_autocorr) > 0.3 else 'near-random residuals — well-calibrated'})\n\n"
+                        f"  Residual autocorrelation at lag-1: {resid_autocorr:.3f} ({autocorr_label})\n\n"
                         f"MODEL STRENGTHS: {sel_meta.get('strengths', '')}\n"
                         f"MODEL WEAKNESSES: {sel_meta.get('weaknesses', '')}\n\n"
-                        f"TASK: Write a concise (3–4 paragraphs) plain-language explanation of:\n"
-                        f"1. Why this model achieves the RMSE it does — link to its algorithm\n"
-                        f"2. What the residual statistics reveal about its failure modes\n"
-                        f"3. In what real-world scenarios you would or would not choose this model\n"
+                        "TASK: Write a concise (3–4 paragraphs) plain-language explanation of:\n"
+                        "1. Why this model achieves the RMSE it does — link to its algorithm\n"
+                        "2. What the residual statistics reveal about its failure modes\n"
+                        "3. In what real-world scenarios you would or would not choose this model\n"
                         f"Be specific and grounded in the numbers above. No generic boilerplate."
                     )
 
