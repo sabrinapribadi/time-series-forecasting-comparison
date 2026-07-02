@@ -27,8 +27,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Constants
-RAW_DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
-PROCESSED_DATA_DIR = Path(__file__).parent.parent / "data" / "processed"
+RAW_DATA_DIR = Path(__file__).parent.parent / "data" / "raw" / "ETT"
+PROCESSED_DATA_DIR = Path(__file__).parent.parent / "data" / "processed" / "ETT"
 
 # ETT dataset URLs (from official GitHub)
 ETT_URLS = {

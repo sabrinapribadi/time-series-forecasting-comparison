@@ -22,7 +22,7 @@ import pandas as pd
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-RAW_DATA_DIR = Path(__file__).parent.parent / "data" / "raw"
+RAW_DATA_DIR = Path(__file__).parent.parent / "data" / "raw" / "ETT"
 
 EXPECTED_COLUMNS = ['date', 'HUFL', 'HULL', 'MUFL', 'MULL', 'LUFL', 'LULL', 'OT']
 VARIANT_INFO = {
