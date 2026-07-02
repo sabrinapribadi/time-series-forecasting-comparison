@@ -848,9 +848,16 @@ with tab2:
         template=PLOTLY_TEMPLATE,
         xaxis_title=f"Test step (1 step = 1 h on ETTh1, showing {steps:,} of {total_steps:,})",
         yaxis_title="Oil Temperature (°C)",
-        height=int(240 * PHI),  # ≈ 388px
+        height=int(240 * PHI) + 120,
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="left", x=0),
+        margin=dict(t=40, b=170, l=60, r=20),
+        legend=dict(
+            orientation="h",
+            yanchor="top", y=-0.32,
+            xanchor="left", x=0,
+            font=dict(size=10),
+            itemwidth=90,
+        ),
     )
     st.plotly_chart(fig_gallery, use_container_width=True)
 
@@ -1027,6 +1034,97 @@ with tab3:
                     margin=dict(t=30, b=40, l=50, r=10),
                 )
                 st.plotly_chart(fig_sc, use_container_width=True)
+
+            # ------------------------------------------------------------------
+            # AI Explainability — natural-language explanation of model behaviour
+            # ------------------------------------------------------------------
+            st.divider()
+            st.markdown("##### AI Explainability")
+            st.markdown(
+                '<div class="context-card" style="font-size:0.82rem;">'
+                "Uses GPT-4o mini to interpret the model's performance profile: "
+                "metric values vs. benchmark average, residual shape, and algorithmic "
+                "constraints. Produces a plain-language diagnosis of <em>why</em> this "
+                "model performs the way it does on ETTh1."
+                "</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Gather AI key from session (resolved in tab5 setup but available globally)
+            _ai_key = None
+            try:
+                _ai_key = st.secrets.get("OPENAI_API_KEY")
+            except Exception:
+                pass
+            if not _ai_key:
+                _ai_key = os.environ.get("OPENAI_API_KEY")
+
+            if _ai_key:
+                explain_btn = st.button(
+                    f"Explain {sel_meta.get('label', sel_label)} performance",
+                    key="explain_btn",
+                    type="primary",
+                )
+                if explain_btn:
+                    # Build context for the explanation prompt
+                    m_dict_full = sel_data.get("metrics", {})
+                    avg_rmse = float(metrics_df["RMSE"].mean()) if "RMSE" in metrics_df.columns else None
+                    rank_rmse = int((metrics_df["RMSE"] <= m_dict_full.get("RMSE", 999)).sum()) if "RMSE" in metrics_df.columns else None
+                    residual_mean = float(np.mean(residuals)) if len(residuals) > 0 else 0
+                    residual_std = float(np.std(residuals)) if len(residuals) > 0 else 0
+                    # Autocorrelation at lag 1 as a measure of residual structure
+                    if len(residuals) > 2:
+                        resid_autocorr = float(
+                            np.corrcoef(residuals[:-1], residuals[1:])[0, 1]
+                        )
+                    else:
+                        resid_autocorr = 0.0
+
+                    explain_prompt = (
+                        f"You are an expert data scientist explaining a time series forecasting result to a "
+                        f"technical but non-specialist audience.\n\n"
+                        f"MODEL: {sel_meta.get('label', sel_label)} ({sel_meta.get('family', fam)} family)\n"
+                        f"ALGORITHM: {sel_meta.get('algorithm', '')}\n"
+                        f"DATASET: ETTh1 (hourly electricity transformer temperature, 17,420 rows, 70/10/20 split)\n"
+                        f"TARGET: OT (oil temperature, °C)\n\n"
+                        f"BENCHMARK METRICS (test set):\n"
+                        + "\n".join(f"  {k}: {v:.4f}" for k, v in m_dict_full.items())
+                        + f"\n\nCONTEXT:\n"
+                        f"  Average RMSE across all 11 models: {avg_rmse:.4f if avg_rmse else 'N/A'}\n"
+                        f"  This model's RMSE rank: {rank_rmse} of {len(metrics_df)} (lower = better)\n"
+                        f"  Residual mean (bias): {residual_mean:.4f} °C\n"
+                        f"  Residual std: {residual_std:.4f} °C\n"
+                        f"  Residual autocorrelation at lag-1: {resid_autocorr:.3f} "
+                        f"({'structured residuals — model misses a pattern' if abs(resid_autocorr) > 0.3 else 'near-random residuals — well-calibrated'})\n\n"
+                        f"MODEL STRENGTHS: {sel_meta.get('strengths', '')}\n"
+                        f"MODEL WEAKNESSES: {sel_meta.get('weaknesses', '')}\n\n"
+                        f"TASK: Write a concise (3–4 paragraphs) plain-language explanation of:\n"
+                        f"1. Why this model achieves the RMSE it does — link to its algorithm\n"
+                        f"2. What the residual statistics reveal about its failure modes\n"
+                        f"3. In what real-world scenarios you would or would not choose this model\n"
+                        f"Be specific and grounded in the numbers above. No generic boilerplate."
+                    )
+
+                    with st.spinner("Generating AI explanation..."):
+                        try:
+                            from openai import OpenAI as _OAI
+                            _client = _OAI(api_key=_ai_key)
+                            _resp = _client.chat.completions.create(
+                                model="gpt-4o-mini",
+                                max_tokens=700,
+                                messages=[{"role": "user", "content": explain_prompt}],
+                            )
+                            explanation = _resp.choices[0].message.content
+                            st.markdown(
+                                f'<div class="chat-ai"><strong>AI Analysis — {sel_meta.get("label", sel_label)}</strong>'
+                                f"<br><br>{explanation.replace(chr(10), '<br>')}</div>",
+                                unsafe_allow_html=True,
+                            )
+                        except Exception as e:
+                            st.error(f"OpenAI API error: {e}")
+            else:
+                st.caption("Add OPENAI_API_KEY to .streamlit/secrets.toml to enable AI explanations.")
+
         else:
             st.info("No predictions available for this model.")
 
@@ -1095,12 +1193,17 @@ with tab4:
 
             fig_ts.update_layout(
                 template=PLOTLY_TEMPLATE,
-                height=int(200 * PHI) + 100,  # ≈ 424px
+                height=int(200 * PHI) + 140,
                 xaxis2_title="Date",
                 yaxis_title="Load (MW)",
                 yaxis2_title="OT (°C)",
-                legend=dict(orientation="h", y=-0.15),
-                margin=dict(t=30, b=60, l=60, r=20),
+                legend=dict(
+                    orientation="h",
+                    yanchor="top", y=-0.22,
+                    xanchor="left", x=0,
+                    font=dict(size=10),
+                ),
+                margin=dict(t=30, b=130, l=60, r=20),
             )
             fig_ts.update_xaxes(
                 rangeslider=dict(visible=True, thickness=0.04),
@@ -1155,8 +1258,8 @@ with tab5:
         '<div class="context-card">'
         "Ask natural language questions about the forecasting models, benchmark results, or ETT dataset. "
         "The assistant retrieves relevant context from the benchmark data and uses "
-        "<strong>Claude (Anthropic)</strong> to generate grounded, cited answers.<br><br>"
-        "Requires an <code>ANTHROPIC_API_KEY</code> in environment or "
+        "<strong>GPT-4o mini (OpenAI)</strong> to generate grounded, cited answers.<br><br>"
+        "Requires an <code>OPENAI_API_KEY</code> in environment or "
         "<code>.streamlit/secrets.toml</code>."
         "</div>",
         unsafe_allow_html=True,
@@ -1204,10 +1307,11 @@ with tab5:
             rmse = m.get("RMSE", "N/A")
             r2 = m.get("R2", "N/A")
             mae = m.get("MAE", "N/A")
+            rmse_str = f"{rmse:.4f}" if isinstance(rmse, float) else str(rmse)
+            mae_str = f"{mae:.4f}" if isinstance(mae, float) else str(mae)
+            r2_str = f"{r2:.4f}" if isinstance(r2, float) else str(r2)
             rows_text.append(
-                f"  {name} ({fam}): RMSE={rmse:.4f if isinstance(rmse, float) else rmse}, "
-                f"MAE={mae:.4f if isinstance(mae, float) else mae}, "
-                f"R2={r2:.4f if isinstance(r2, float) else r2}"
+                f"  {name} ({fam}): RMSE={rmse_str}, MAE={mae_str}, R2={r2_str}"
             )
         chunks.append({
             "id": "benchmark_results",
@@ -1334,18 +1438,18 @@ with tab5:
 
     api_key = None
     try:
-        api_key = st.secrets.get("ANTHROPIC_API_KEY")
+        api_key = st.secrets.get("OPENAI_API_KEY")
     except Exception:
         pass
     if not api_key:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        api_key = os.environ.get("OPENAI_API_KEY")
 
     if not api_key:
         st.warning(
-            "**Anthropic API key not found.** "
+            "**OpenAI API key not found.** "
             "To enable the AI assistant, add your key to `.streamlit/secrets.toml`:\n\n"
-            "```toml\nANTHROPIC_API_KEY = \"sk-ant-...\"\n```\n\n"
-            "or set the environment variable `ANTHROPIC_API_KEY` before launching Streamlit."
+            "```toml\nOPENAI_API_KEY = \"sk-...\"\n```\n\n"
+            "or set the environment variable `OPENAI_API_KEY` before launching Streamlit."
         )
 
     # ---------------------------------------------------------------------------
@@ -1426,18 +1530,20 @@ with tab5:
 
         with st.spinner("Generating response..."):
             try:
-                import anthropic
-                client = anthropic.Anthropic(api_key=api_key)
-                response = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",
                     max_tokens=1024,
-                    system=system_prompt,
                     messages=[
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state.chat_history
+                        {"role": "system", "content": system_prompt},
+                        *[
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.chat_history
+                        ],
                     ],
                 )
-                answer = response.content[0].text
+                answer = response.choices[0].message.content
                 # Show retrieved sources
                 source_ids = [c["id"] for c in retrieved]
                 answer += f"\n\n*Sources retrieved: {', '.join(source_ids)}*"

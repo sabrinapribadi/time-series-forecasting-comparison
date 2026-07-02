@@ -1,9 +1,9 @@
 PRODUCT REQUIREMENTS DOCUMENT (PRD)
 Project: Time Series Forecasting Model Comparison
-Version: 2.0 (Multivariate + Optuna + IOH Patterns)
+Version: 3.0 (Dashboard v2 — RAG, AI Explainability, OpenAI Integration)
 Author: Sabrina Pribadi
 Date: July 2, 2026
-Status: Active — All 11 models benchmarked; multivariate and Optuna HPO incorporated
+Status: Active — Dashboard v2 deployed; RAG + AI Explainability via OpenAI API added
 
 
 1. EXECUTIVE SUMMARY
@@ -59,7 +59,12 @@ This project was built to demonstrate capabilities across:
 6. Deployment Engineering: Pre-computed JSON predictions committed to data/forecasts/ETT/;
    Streamlit dashboard reads JSON only — no model weights, no retraining at runtime.
 
-7. IOH Production Bridge: Feature engineering patterns (rolling_mean_3, rolling_std_3, trend_3,
+7. AI Features (Dashboard v2): RAG Ask AI tab using GPT-4o mini with keyword retrieval over
+   benchmark data and model metadata; AI Explainability in Model Inspector generates plain-language
+   diagnoses of each model's performance (metrics, residual autocorrelation, failure modes).
+   OpenAI API key stored in .streamlit/secrets.toml (gitignored).
+
+8. IOH Production Bridge: Feature engineering patterns (rolling_mean_3, rolling_std_3, trend_3,
    growth_rate) from AOP2026 pipeline; multivariate covariates from congestion IMPACT project;
    additional metrics (MDA, Bias, MAAPE) from congestion metrics library.
 
@@ -81,8 +86,9 @@ In-Scope:
 - Feature Engineering: Cyclical time features, OT lags, rolling stats + trend (AOP2026 pattern)
 - HPO: Optuna tuning for HoltWinters, RandomForest, XGBoost, CatBoost (IOH trial counts)
 - Evaluation: 9 metrics (RMSE, MAE, MAPE, SMAPE, MASE, R², MDA, Bias, MAAPE)
-- Deployment: Pre-computed JSON + Streamlit 3-tab dashboard
-- Documentation: 6 ADRs, PRD, ARCHITECTURE.md, README
+- Deployment: Pre-computed JSON + Streamlit 5-tab dashboard (v2)
+- AI Features: RAG Ask AI (GPT-4o mini + keyword retrieval) + AI Explainability per model
+- Documentation: 6 ADRs, PRD v3, ARCHITECTURE.md, README v2
 
 Out-of-Scope (current version):
 - Multi-horizon probabilistic forecasting (quantile outputs from TFT not yet exposed)
@@ -90,6 +96,7 @@ Out-of-Scope (current version):
 - Real-time inference or streaming pipeline
 - GPU cloud training (local MPS/CPU only)
 - Production A/B testing infrastructure
+- SHAP feature-level explainability (requires model checkpoints at dashboard runtime)
 
 
 4. USER PERSONAS AND STORIES
@@ -174,11 +181,23 @@ Module F: Training Script (scripts/train_model.py)
 - F.6 Result saved FIRST (data/forecasts/ETT/{run_name}.json), then checkpoint ({run_name}.joblib)
 - F.7 Run name encodes mode + tune status: {model}[_multivariate][_tuned]_{variant}
 
-Module G: Streamlit Dashboard (src/ui/dashboard.py)
+Module G: Streamlit Dashboard v2 (src/ui/dashboard.py)
 - G.1 Data source: reads data/forecasts/ETT/*.json only — no model weights at runtime
-- G.2 Tab 1 — Benchmark Results: sortable metric table, RMSE bar chart, model family filter
-- G.3 Tab 2 — Forecast Gallery: per-model actual vs. predicted time series plot
-- G.4 Tab 3 — Model Inspector: side-by-side metric comparison, feature importance (ML models)
+- G.2 Design: golden ratio (φ=1.618) column splits; Inter + JetBrains Mono fonts;
+       dark theme (#0D1117 / #161B22); family colours Statistical=#F5A623, ML=#4C8BF5, DL=#9B8FFF
+- G.3 Tab 1 — Benchmark Results: KPI cards, ranked bar chart with metric context cards,
+       per-metric formula + description, multi-metric normalised radar chart, full metric table
+- G.4 Tab 2 — Forecast Gallery: all models overlaid on OT test set, colour-coded by family,
+       range slider for zoom; family RMSE summary cards below chart
+- G.5 Tab 3 — Model Inspector: Actual vs Predicted, residuals over time, residual histogram
+       with mean line, predicted-vs-actual scatter; + AI Explainability button (GPT-4o mini)
+       that generates plain-language diagnosis from metrics + residual autocorrelation
+- G.6 Tab 4 — Data Explorer: ETT raw time series (dual-panel + range slider), summary stats,
+       7×7 Pearson correlation heatmap
+- G.7 Tab 5 — Ask AI (RAG): keyword retrieval over knowledge base (dataset overview, benchmark
+       table, model descriptions, metric formulas, feature engineering); GPT-4o mini response
+       with cited source IDs; 6 quick-question buttons; full chat history in session state
+- G.8 Sidebar: grouped expanders (Model Families, Individual Models, Display Options, Dataset Info)
 
 
 6. NON-FUNCTIONAL REQUIREMENTS
