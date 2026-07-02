@@ -1,0 +1,9 @@
+# Streamlit Cloud deployment — dashboard runtime only
+# Training dependencies (torch, darts, catboost, etc.) are NOT needed at runtime
+# because models are pre-computed and stored as JSON in data/forecasts/ETT/
+
+numpy>=1.24.0
+pandas>=2.0.0
+plotly>=5.14.0
+streamlit>=1.35.0
+anthropic>=0.115.1
