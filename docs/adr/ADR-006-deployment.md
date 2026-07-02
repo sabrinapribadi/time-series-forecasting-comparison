@@ -1,7 +1,7 @@
-# ADR-006: Deployment — Pre-Computed JSON Results for Streamlit Dashboard
+# ADR-006: Deployment — Pre-Computed JSON + Streamlit Dashboard v2 + RAG / AI Explainability
 
-**Status:** Accepted  
-**Date:** 2026-06-25  
+**Status:** Accepted (updated 2026-07-02 — Dashboard v2)
+**Date:** 2026-06-25 | **Last Updated:** 2026-07-02  
 **Deciders:** Sabrina Pribadi
 
 ---
@@ -68,10 +68,23 @@ JSON saved **before** joblib checkpoint in `scripts/train_model.py` — so resul
 
 Run name encoding: `{model}[_multivariate][_tuned]_{variant}.json` — allows univariate and multivariate results to coexist in the same directory.
 
-Dashboard (`src/ui/dashboard.py`) reads `data/forecasts/ETT/*.json` at startup, builds a DataFrame of metrics, and renders 3 tabs:
-- **Benchmark Results**: sortable metrics table + RMSE bar chart
-- **Forecast Gallery**: per-model actual vs. predicted plot
-- **Model Inspector**: side-by-side metric comparison
+Dashboard (`src/ui/dashboard.py`) v2 reads `data/forecasts/ETT/*.json` at startup, builds a DataFrame of metrics, and renders **5 tabs**:
+- **Benchmark Results**: KPI cards, ranked bar chart with per-metric formula cards, normalised radar chart, full metric table
+- **Forecast Gallery**: all models overlaid on OT test set, family colour-coded, zoomable with range slider
+- **Model Inspector**: Actual vs Predicted, residuals, histogram, scatter + **AI Explainability** (GPT-4o mini)
+- **Data Explorer**: ETT raw signal (dual-panel time series + range slider), summary stats, Pearson heatmap
+- **Ask AI (RAG)**: keyword retrieval over knowledge base → GPT-4o mini response with cited source IDs
+
+**AI Explainability (Model Inspector):** For any selected model, a button calls GPT-4o mini with:
+- Model algorithm, family, benchmark metrics, rank vs. average
+- Residual mean (bias), residual std, residual lag-1 autocorrelation (pattern detection)
+- Outputs 3–4 paragraphs: why the RMSE, what residuals reveal, when to use in production
+
+**RAG Ask AI (Tab 5):** Keyword-based retrieval (no vector DB) over pre-built chunks (dataset overview, benchmark table, oracle explanation, model descriptions, metric formulas, feature engineering). Top-4 chunks sent to GPT-4o mini as context.
+
+**API Key management:** `OPENAI_API_KEY` stored in `.streamlit/secrets.toml` (gitignored by `.gitignore`). Dashboard gracefully degrades — AI features show a warning if key is absent, all other tabs remain functional.
+
+**Streamlit Cloud deployment:** `requirements-streamlit.txt` lists only 5 deps (numpy, pandas, plotly, streamlit, openai). No torch/darts/catboost at runtime.
 
 ## Positive Consequences
 
@@ -90,8 +103,11 @@ Dashboard (`src/ui/dashboard.py`) reads `data/forecasts/ETT/*.json` at startup, 
 
 - `src/utils.save_results()`: saves JSON to `data/forecasts/ETT/{name}.json`; creates directory if needed
 - `scripts/train_model.py`: calls `save_results()` BEFORE `joblib.dump()` — results persist even if checkpoint write fails
-- `.gitignore`: includes `models/*.joblib` (checkpoints), excludes `data/forecasts/ETT/*.json` (committed)
-- `src/ui/dashboard.py`: `glob.glob('data/forecasts/ETT/*.json')` at startup; warns if no files found
+- `.gitignore`: includes `/models/` (checkpoints), excludes `data/forecasts/ETT/*.json` (committed); `.streamlit/secrets.toml` explicitly gitignored
+- `src/ui/dashboard.py`: `Path('data/forecasts/ETT').glob('*.json')` at startup; `st.stop()` with error if no files found
+- `.streamlit/config.toml`: dark theme (backgroundColor=#0D1117), Inter font, XSRF protection
+- `requirements-streamlit.txt`: minimal 5-dep file for Streamlit Cloud (numpy, pandas, plotly, streamlit, openai)
+- `pyproject.toml`: `openai>=2.44.0` added for local development
 
 ## Related Decisions
 

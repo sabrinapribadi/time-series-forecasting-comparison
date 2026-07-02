@@ -33,7 +33,8 @@ flowchart LR
     C --> D["src/models/\nstatistical.py · ml.py · deep_learning.py"]
     D --> E["src/evaluation/metrics.py\nRMSE MAE MAPE SMAPE R² MASE MDA Bias"]
     E --> F["data/forecasts/ETT/*.json\n(pre-computed — committed)"]
-    F --> G["Streamlit Dashboard\nsrc/ui/dashboard.py\nBenchmark · Gallery · Inspector"]
+    F --> G["Streamlit Dashboard\nsrc/ui/dashboard.py\nBenchmark · Gallery · Inspector · Explorer · Ask AI"]
+    G --> H["OpenAI GPT-4o mini\nRAG retrieval + AI Explainability"]
 ```
 
 ## Models and Algorithms
@@ -379,7 +380,7 @@ make train-multivariate
 make train-tuned
 ```
 
-## Dashboard
+## Dashboard (v2)
 
 Pre-computed JSON results in `data/forecasts/ETT/` power the dashboard — no model weights or retraining needed:
 
@@ -387,7 +388,42 @@ Pre-computed JSON results in `data/forecasts/ETT/` power the dashboard — no mo
 PYTHONPATH=. poetry run streamlit run src/ui/dashboard.py
 ```
 
-Dashboard opens at `http://localhost:8501`.
+Dashboard opens at `http://localhost:8502`.
+
+### Tabs
+
+| Tab | What it shows |
+|-----|--------------|
+| **Benchmark Results** | KPI cards, metric ranking bar chart, multi-metric radar chart, full metric table |
+| **Forecast Gallery** | Test-set overlay of all models on OT, family colour-coded, zoomable |
+| **Model Inspector** | Actual vs Predicted, residuals over time, error histogram, scatter — plus **AI Explainability** |
+| **Data Explorer** | ETT raw signal (all 7 columns), summary statistics, Pearson correlation heatmap |
+| **Ask AI (RAG)** | GPT-4o mini assistant with keyword-retrieval over benchmark data and model metadata |
+
+### AI Explainability
+
+The **Model Inspector** tab includes an AI Explainability button powered by GPT-4o mini. For any selected model it generates a plain-language diagnosis covering:
+
+- Why the model achieves the RMSE it does (linked to algorithm mechanics)
+- What residual statistics reveal about its failure modes (bias, autocorrelation)
+- When you would or would not choose this model in production
+
+### Ask AI (RAG)
+
+The **Ask AI** tab uses a keyword-based retrieval system over a pre-built knowledge base of benchmark results, model descriptions, metric formulas, and feature engineering notes. Retrieved chunks are sent to GPT-4o mini as context for grounded, cited answers.
+
+```toml
+# .streamlit/secrets.toml (gitignored)
+OPENAI_API_KEY = "sk-..."
+```
+
+### Streamlit Cloud Deployment
+
+Use `requirements-streamlit.txt` (5 lightweight deps, no torch/darts/catboost) and add `OPENAI_API_KEY` in the Streamlit Cloud Secrets panel.
+
+```
+Main file: src/ui/dashboard.py
+```
 
 ## Tech Stack
 
@@ -399,6 +435,7 @@ Dashboard opens at `http://localhost:8501`.
 | HPO | Optuna 3.x |
 | Data | NumPy, Pandas |
 | Frontend | Streamlit 1.35+, Plotly |
+| AI / LLM | OpenAI API (GPT-4o mini) — RAG + explainability |
 | Metrics | scikit-learn, NumPy |
 | Language | Python 3.10+ |
 | Hardware | Apple MPS / CUDA / CPU (auto-detected) |
