@@ -29,8 +29,16 @@ Available models:
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
+
+# Must be set before any library import (torch, XGBoost, LightGBM) to avoid
+# macOS threading conflicts when both PyTorch and gradient boosters initialize
+# their thread pools in the same process.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 import numpy as np
 import pandas as pd
