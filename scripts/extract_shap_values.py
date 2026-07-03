@@ -34,7 +34,11 @@ N_EXPLAIN = 200      # test samples to explain
 
 def extract_shap_one(joblib_path: str, project_root: str, variant: str) -> dict | None:
     code = f"""
-import sys, json
+import os, sys, json
+# Must precede any torch/xgboost/lgbm import to avoid macOS threading segfaults
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 sys.path.insert(0, r'{project_root}')
 import numpy as np
 import joblib

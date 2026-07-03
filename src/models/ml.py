@@ -130,6 +130,7 @@ class XGBoostModel:
             min_child_weight=min_child_weight,
             random_state=random_state,
             verbosity=0,
+            nthread=1,  # prevents segfault on macOS with XGBoost 2.x multi-threading
             **kwargs,
         )
 
@@ -227,6 +228,7 @@ class LightGBMModel:
             reg_lambda=reg_lambda,
             random_state=random_state,
             verbose=-1,
+            num_threads=1,  # prevents segfault on macOS with LightGBM multi-threading
             **kwargs,
         )
 
