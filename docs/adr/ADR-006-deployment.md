@@ -1,7 +1,7 @@
-# ADR-006: Deployment — Pre-Computed JSON + Streamlit Dashboard v2 + RAG / AI Explainability
+# ADR-006: Deployment — Pre-Computed JSON + Streamlit Dashboard v3 + RAG / AI Explainability
 
-**Status:** Accepted (updated 2026-07-02 — Dashboard v2)
-**Date:** 2026-06-25 | **Last Updated:** 2026-07-02  
+**Status:** Accepted (updated 2026-07-03 — Dashboard v3, Remediation v6)
+**Date:** 2026-06-25 | **Last Updated:** 2026-07-03  
 **Deciders:** Sabrina Pribadi
 
 ---
@@ -53,14 +53,17 @@ Each model produces a JSON file with:
 {
   "model": "lightgbm",
   "variant": "h1",
-  "mode": "univariate",
+  "mode": "multivariate",
   "tuned": false,
   "horizon": 24,
-  "metrics": {"RMSE": 0.743, "MAE": 0.547, "MDA": 72.4, ...},
+  "metrics": {"RMSE": 0.755, "MAE": 0.556, "R2": 0.952, ...},
+  "train_metrics": {"RMSE": 0.687, "MAE": 0.477, "R2": 0.993, ...},
   "y_true": [...],
   "y_pred": [...]
 }
 ```
+
+`train_metrics` added in v5: in-sample RMSE/MAE/R² computed on training data for ML and LSTM models; empty dict `{}` for statistical and Darts DL models where in-sample prediction is not straightforward.
 
 JSON over parquet because: human-readable, no pyarrow dependency, individual model files can be updated independently.
 
@@ -68,19 +71,32 @@ JSON saved **before** joblib checkpoint in `scripts/train_model.py` — so resul
 
 Run name encoding: `{model}[_multivariate][_tuned]_{variant}.json` — allows univariate and multivariate results to coexist in the same directory.
 
-Dashboard (`src/ui/dashboard.py`) v2 reads `data/forecasts/ETT/*.json` at startup, builds a DataFrame of metrics, and renders **5 tabs**:
+Dashboard (`src/ui/dashboard.py`) v3 reads `data/forecasts/ETT/*.json` at startup, builds a DataFrame of metrics, and renders **6 tabs**:
 - **Benchmark Results**: KPI cards, ranked bar chart with per-metric formula cards, normalised radar chart, full metric table
 - **Forecast Gallery**: all models overlaid on OT test set, family colour-coded, zoomable with range slider
-- **Model Inspector**: Actual vs Predicted, residuals, histogram, scatter + **AI Explainability** (GPT-4o mini)
+- **Model Inspector**: Actual vs Predicted, residuals, histogram, scatter + **Overfitting Diagnostic** (Train vs Test RMSE gap with ratio-based verdict) + Feature Importance (MDI from JSON) + SHAP beeswarm (ML models) + **AI Explainability** (GPT-4o mini streaming bullets, Statistical/DL models)
 - **Data Explorer**: ETT raw signal (dual-panel time series + range slider), summary stats, Pearson heatmap
-- **Ask AI (RAG)**: keyword retrieval over knowledge base → GPT-4o mini response with cited source IDs
+- **Statistical Tests**: Stationarity (ADF+KPSS + contextual interpretation), ACF/PACF (with peak detection and model implications), Granger Causality (table + per-feature interpretation), Diebold-Mariano (pairwise test + actionable guidance + full p-value matrix with next-step summary)
+- **Ask AI (RAG)**: keyword retrieval over knowledge base → GPT-4o mini response with cited source IDs; 6 quick-question buttons that auto-send on click
+
+**Overfitting Diagnostic (Model Inspector, v3):** Shows Train RMSE, Test RMSE, ratio, and verdict:
+- ratio < 1.2 → "Well-fitted" (green)
+- ratio 1.2–2.0 → "Moderate overfit" (orange)
+- ratio > 2.0 → "Overfitting" (red)
+- ratio < 1.0 (test < train) → characteristic of CatBoost ordered boosting
 
 **AI Explainability (Model Inspector):** For any selected model, a button calls GPT-4o mini with:
 - Model algorithm, family, benchmark metrics, rank vs. average
 - Residual mean (bias), residual std, residual lag-1 autocorrelation (pattern detection)
-- Outputs 3–4 paragraphs: why the RMSE, what residuals reveal, when to use in production
+- Outputs 3 bullet points: RMSE rationale, residual failure modes, production recommendation
 
-**RAG Ask AI (Tab 5):** Keyword-based retrieval (no vector DB) over pre-built chunks (dataset overview, benchmark table, oracle explanation, model descriptions, metric formulas, feature engineering). Top-4 chunks sent to GPT-4o mini as context.
+**RAG Ask AI (Tab 6):** Keyword-based retrieval (no vector DB) over pre-built chunks (dataset overview, benchmark table, oracle explanation, model descriptions, metric formulas, feature engineering). Top-4 chunks sent to GPT-4o mini as context. Quick-question buttons write directly to `st.session_state.chat_textarea` and set `_auto_send=True` so the query fires without requiring a manual Send click.
+
+**Statistical Tests (Tab 5, v3):** Each section now includes a contextual interpretation card:
+- Stationarity: detects ADF/KPSS agreement or conflict and explains implications for ARIMA vs ML
+- ACF/PACF: reads computed values at lags 1, 24, 48; flags peaks by value; detects slow decay pattern
+- Granger Causality: lists significant features, explains physical mechanism (load → heat → OT), adds correlation ≠ causation caveat
+- Diebold-Mariano: per-comparison guidance (significant = justified model choice; not significant = prefer simpler); matrix summary with count of equivalent pairs and 3 next steps
 
 **API Key management:** `OPENAI_API_KEY` stored in `.streamlit/secrets.toml` (gitignored by `.gitignore`). Dashboard gracefully degrades — AI features show a warning if key is absent, all other tabs remain functional.
 
@@ -108,6 +124,32 @@ Dashboard (`src/ui/dashboard.py`) v2 reads `data/forecasts/ETT/*.json` at startu
 - `.streamlit/config.toml`: dark theme (backgroundColor=#0D1117), Inter font, XSRF protection
 - `requirements-streamlit.txt`: minimal 5-dep file for Streamlit Cloud (numpy, pandas, plotly, streamlit, openai)
 - `pyproject.toml`: `openai>=2.44.0` added for local development
+
+## Overfitting / Underfitting Remediation (v6)
+
+After measuring train vs test RMSE gaps, targeted fixes were applied and models retrained:
+
+**ML Overfitting:**
+| Model | Problem | Fix | Before | After |
+|-------|---------|-----|--------|-------|
+| Random Forest | 2.13× gap | Optuna max_features search (sqrt/log2/0.5/0.7/1.0); max_depth≤10 found | RMSE=0.783 | RMSE=0.703, gap=1.06× ✅ |
+| XGBoost | 1.23× gap | early_stopping_rounds=50 in XGBRegressor() constructor (XGBoost 2.x API); reg_alpha/reg_lambda in Optuna | RMSE=0.847 | RMSE updated post-retrain |
+| LightGBM | 1.10× (OK) | No change — IOH AOP2026 params already well-regularised | RMSE=0.755 | unchanged |
+| CatBoost | 0.82× (OK) | No change — ordered boosting gives conservative in-sample by design | RMSE=0.744 | unchanged |
+
+**DL Underfitting (all models RMSE > 3.0 vs ML < 0.85) — final results:**
+| Model | Fix | Param change | Before | After | Note |
+|-------|-----|-------------|--------|-------|------|
+| LSTM | More capacity + longer window | hidden_size 128→256, num_layers 2→3, input_len 96→168 | RMSE=5.332 | RMSE=5.332 (v1 kept) | v2 causes MPS kernel hang on Apple Silicon; all retries failed |
+| Transformer | More capacity + longer window | d_model 64→128, input_chunk_length 96→168 | RMSE=3.429 | RMSE=3.525 | Marginally worse — capacity alone insufficient without LR warmup |
+| N-BEATS | Longer window (already large) | input_chunk_length 96→168 | RMSE=4.065 | RMSE=4.358 | Slightly worse — needs more epochs or stack separation for longer context |
+| TFT | More capacity + longer window + covariates | hidden_size 64→128, input_chunk_length 96→168, past_covariates=6 load cols | — | RMSE=4.214 | New architecture; past_covariates add electrical load signals |
+
+**Verdict:** DL capacity increases did not close the ML vs DL RMSE gap (0.70 vs 3.5+). The gap is driven by oracle lag access (ML) vs univariate input (DL), not model architecture.
+
+**TFT past_covariates design decision:** TFT.fit() accepts optional `past_cov_arr` (numpy array of shape [n_train, 6]) and `past_cov_dates`. These are converted to a Darts multivariate TimeSeries and stored as `self._past_cov_ts` for use in predict(). train_model.py loads a separate multivariate split for TFT and passes the load columns (HUFL/HULL/MUFL/MULL/LUFL/LULL). This is the same load-to-OT physical relationship that ML models exploit via X features.
+
+**XGBoost 2.x API note:** `early_stopping_rounds` was moved from `fit()` to the `XGBRegressor()` constructor in XGBoost 2.0. When `eval_set` is provided to `fit()`, early stopping activates automatically. The `callbacks` parameter was also removed from `fit()`. This is a breaking change from XGBoost 1.x.
 
 ## Related Decisions
 

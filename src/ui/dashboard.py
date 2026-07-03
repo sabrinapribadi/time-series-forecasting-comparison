@@ -411,10 +411,12 @@ PLOTLY_TEMPLATE = go.layout.Template(
 @st.cache_data
 def load_results() -> dict:
     results = {}
+    _skip_suffixes = ("_feature_importance", "_shap")
     for path in sorted(FORECAST_DIR.glob("*.json")):
+        if any(path.stem.endswith(s) for s in _skip_suffixes):
+            continue
         with open(path) as f:
             data = json.load(f)
-        # Derive display name from JSON or stem
         key = path.stem
         model_key = data.get("model", key.split("_h")[0].split("_m")[0])
         results[key] = {**data, "_model_key": model_key}
@@ -932,6 +934,33 @@ with tab3:
             color_style = "color:#56D364; font-weight:600;" if is_best else ""
             col_right.markdown(f"<span style='{color_style}'>{mv:.4f}</span>", unsafe_allow_html=True)
 
+        # Overfitting diagnostic: train vs test RMSE gap
+        train_m = sel_data.get("train_metrics", {})
+        test_rmse = m_dict.get("RMSE")
+        train_rmse = train_m.get("RMSE")
+        st.divider()
+        st.markdown("**Overfitting Diagnostic**")
+        if train_rmse and test_rmse:
+            gap_ratio = test_rmse / train_rmse
+            if gap_ratio < 1.2:
+                fit_label, fit_color, fit_note = "Well-fitted", "#56D364", "Train ≈ Test — generalises well."
+            elif gap_ratio < 2.0:
+                fit_label, fit_color, fit_note = "Moderate overfit", "#F5A623", "Some gap — regularisation may help."
+            else:
+                fit_label, fit_color, fit_note = "Overfitting", "#FF6B6B", "Large gap — model memorised training data."
+            st.markdown(
+                f'<div style="font-size:0.80rem;">'
+                f"Train RMSE: <strong>{train_rmse:.4f}</strong><br>"
+                f"Test RMSE: <strong>{test_rmse:.4f}</strong><br>"
+                f"Ratio: <span style='color:{fit_color}; font-weight:600'>{gap_ratio:.2f}×</span> "
+                f"→ <span style='color:{fit_color}'>{fit_label}</span><br>"
+                f"<span style='color:#8B949E; font-size:0.75rem;'>{fit_note}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.caption("No train metrics — retrain to generate them.")
+
     with detail_col:
         if "y_true" in sel_data and "y_pred" in sel_data:
             y_true = np.array(sel_data["y_true"][:n_steps])
@@ -1032,7 +1061,8 @@ with tab3:
                 fig_sc.update_layout(
                     template=PLOTLY_TEMPLATE, height=280,
                     xaxis_title="Actual OT (°C)", yaxis_title="Predicted OT (°C)",
-                    margin=dict(t=30, b=40, l=50, r=10),
+                    margin=dict(t=40, b=50, l=50, r=10),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1, font=dict(size=10)),
                 )
                 st.plotly_chart(fig_sc, use_container_width=True)
 
@@ -1203,8 +1233,10 @@ with tab3:
                     _fv = _feat_sample[:, _fi]
                     # Normalise feature value 0→1 for color scale
                     _fv_norm = (_fv - _fv.min()) / (max(_fv.max() - _fv.min(), 1e-9))
+                    # Bright diverging palette visible on dark background:
+                    # low value → #60A5FA (sky blue), high value → #F87171 (coral red)
                     _colors = [
-                        f"rgb({int(255*v)},{int(30*(1-v))},{int(200*(1-v))})"
+                        f"rgb({int(96 + 159*v)},{int(165 - 141*v)},{int(250 - 136*v)})"
                         for v in _fv_norm
                     ]
                     _y_jitter = [_fname] * len(_sv)
@@ -1259,6 +1291,9 @@ with tab3:
             if not _ai_key:
                 _ai_key = os.environ.get("OPENAI_API_KEY")
 
+            if _show_ai_btn and not _ai_key:
+                st.caption("Add OPENAI_API_KEY to .streamlit/secrets.toml to enable AI explanations.")
+
             if _show_ai_btn and _ai_key:
                 explain_btn = st.button(
                     f"Explain {sel_meta.get('label', sel_label)} performance",
@@ -1298,10 +1333,11 @@ with tab3:
                         f"lag-1 autocorr={resid_autocorr:.3f} ({autocorr_label})\n"
                         f"Strengths: {sel_meta.get('strengths', '')}\n"
                         f"Weaknesses: {sel_meta.get('weaknesses', '')}\n\n"
-                        "In 3 short paragraphs: (1) why this RMSE given the algorithm, "
-                        "(2) what residuals reveal about failure modes, "
-                        "(3) when to use/avoid this model in production. "
-                        "Be specific to these numbers. No boilerplate."
+                        "Reply in exactly 3 bullet points using markdown (start each with '- **Label:**'):\n"
+                        "- **RMSE:** why this score given the algorithm mechanics\n"
+                        "- **Residuals:** what bias/std/autocorr reveal about failure modes\n"
+                        "- **Production:** when to use or avoid this model\n"
+                        "Be specific to the numbers above. No filler sentences."
                     )
 
                     st.markdown(f"**AI Analysis — {sel_meta.get('label', sel_label)}**")
@@ -1321,8 +1357,6 @@ with tab3:
                         )
                     except Exception as e:
                         st.error(f"OpenAI API error: {e}")
-            else:
-                st.caption("Add OPENAI_API_KEY to .streamlit/secrets.toml to enable AI explanations.")
 
         else:
             st.info("No predictions available for this model.")
@@ -1398,11 +1432,11 @@ with tab4:
                 yaxis2_title="OT (°C)",
                 legend=dict(
                     orientation="h",
-                    yanchor="top", y=-0.22,
+                    yanchor="bottom", y=1.02,
                     xanchor="left", x=0,
                     font=dict(size=10),
                 ),
-                margin=dict(t=30, b=130, l=60, r=20),
+                margin=dict(t=50, b=60, l=60, r=20),
             )
             fig_ts.update_xaxes(
                 rangeslider=dict(visible=True, thickness=0.04),
@@ -1566,6 +1600,42 @@ with tab5:
                     f"</div>",
                     unsafe_allow_html=True,
                 )
+            # Interpretation card based on actual results
+            adf_stationary = adf_p < 0.05
+            kpss_stationary = kpss_p > 0.05
+            if adf_stationary and kpss_stationary:
+                stat_verdict = "✅ <strong>Both tests agree: OT is stationary.</strong>"
+                stat_implication = (
+                    "ARIMA and Holt-Winters can be applied directly without differencing. "
+                    "ML models also benefit — lag features will capture autocorrelation reliably "
+                    "without a drifting mean distorting the feature space."
+                )
+            elif not adf_stationary and not kpss_stationary:
+                stat_verdict = "⚠️ <strong>Both tests agree: OT is non-stationary.</strong>"
+                stat_implication = (
+                    "A trend or drift is present. ARIMA should use d≥1 (differencing). "
+                    "ML models need detrending or difference-based lag features to avoid spurious correlation."
+                )
+            elif adf_stationary and not kpss_stationary:
+                stat_verdict = "⚠️ <strong>Conflicting results (ADF stationary, KPSS non-stationary).</strong>"
+                stat_implication = (
+                    "This is the most common pattern for long time series: the series is stationary around a slowly-changing mean "
+                    "(trend-stationary). KPSS is more sensitive to structural shifts; ADF has lower power. "
+                    "Treat OT as weakly stationary — ARIMA with d=0 or d=1 should both be tested. "
+                    "ML models are robust to this ambiguity since they don't assume strict stationarity."
+                )
+            else:
+                stat_verdict = "ℹ️ <strong>Conflicting results (ADF non-stationary, KPSS stationary).</strong>"
+                stat_implication = "Rare case — may indicate a unit root with heteroskedasticity. Consider differencing as a precaution."
+
+            st.markdown(
+                f'<div class="context-card" style="font-size:0.82rem; border-left: 3px solid #4C8BF5;">'
+                f"<strong>What this means for forecasting:</strong><br>"
+                f"{stat_verdict}<br>{stat_implication}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
         except Exception as e:
             st.error(f"Stationarity tests failed: {e}")
 
@@ -1633,6 +1703,41 @@ with tab5:
         fig_acf.update_xaxes(title_text="Lag (hours)")
         st.plotly_chart(fig_acf, use_container_width=True)
 
+        # ACF/PACF interpretation based on computed values
+        acf_lag24 = acf_vals[24] if len(acf_vals) > 24 else 0
+        acf_lag48 = acf_vals[48] if len(acf_vals) > 48 else 0
+        acf_lag1 = acf_vals[1] if len(acf_vals) > 1 else 0
+        pacf_lag1 = pacf_vals[1] if len(pacf_vals) > 1 else 0
+
+        acf_lines = []
+        if abs(acf_lag1) > conf_bound:
+            acf_lines.append(f"<strong>Lag 1 ACF = {acf_lag1:.3f}</strong> — strong short-term persistence. Past OT is highly predictive of the next hour.")
+        if abs(acf_lag24) > conf_bound:
+            acf_lines.append(f"<strong>Lag 24 ACF = {acf_lag24:.3f}</strong> — significant daily seasonality. Temperature 24 h ago predicts today's temperature.")
+        if abs(acf_lag48) > conf_bound:
+            acf_lines.append(f"<strong>Lag 48 ACF = {acf_lag48:.3f}</strong> — the daily cycle persists 48 h out.")
+
+        # Check if ACF decays slowly (all values above conf bound through lag 24)
+        slow_decay = all(abs(acf_vals[i]) > conf_bound for i in range(1, min(25, len(acf_vals))))
+        if slow_decay:
+            acf_lines.append("Slowly decaying ACF suggests <strong>strong autoregressive (AR) structure</strong> — this is why lag features matter so much for ML models.")
+
+        pacf_lines = []
+        if abs(pacf_lag1) > conf_bound * 3:
+            pacf_lines.append(f"<strong>PACF cuts off sharply after lag 1</strong> ({pacf_lag1:.3f}) — most of the predictability is captured by a single AR(1) term. An AR(1) or ARIMA(1,0,0) is a reasonable baseline.")
+
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem; border-left: 3px solid #4C8BF5;">'
+            "<strong>Reading these charts:</strong><br>"
+            + "<br>".join(acf_lines + pacf_lines or ["No significant lags detected above the confidence band."])
+            + "<br><br><em>Practical implication:</em> The strong autocorrelation at lags 1 and 24 "
+            "justifies the lag features (OT_lag_1, OT_lag_2, OT_lag_24) used in ML models. "
+            "Models that can exploit this structure — ML with lag features, N-BEATS, TFT — "
+            "should outperform pure autoregressive statistical models."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
         st.divider()
 
         # -----------------------------------------------------------------------
@@ -1677,6 +1782,51 @@ with tab5:
                 cols_order += [f"p (lag {lg}h)", f"sig {lg}h"]
             st.dataframe(gc_df[cols_order], use_container_width=True)
             st.caption("* p<0.05  ** p<0.01  *** p<0.001  — = not significant")
+
+            # Interpretation
+            sig_features = [
+                lc for lc in load_cols_gc
+                if any(
+                    isinstance(gc_df.loc[lc, f"p (lag {lg}h)"], float)
+                    and gc_df.loc[lc, f"p (lag {lg}h)"] < 0.05
+                    for lg in gc_lags
+                )
+            ]
+            not_sig = [lc for lc in load_cols_gc if lc not in sig_features]
+
+            feature_meanings = {
+                "HUFL": "high-voltage useful load", "HULL": "high-voltage useless load",
+                "MUFL": "mid-voltage useful load", "MULL": "mid-voltage useless load",
+                "LUFL": "low-voltage useful load", "LULL": "low-voltage useless load",
+            }
+            sig_desc = ", ".join(f"<strong>{f}</strong> ({feature_meanings.get(f, f)})" for f in sig_features)
+            not_desc = ", ".join(f"<strong>{f}</strong>" for f in not_sig) if not_sig else "none"
+
+            gc_interp = []
+            if sig_features:
+                gc_interp.append(
+                    f"{sig_desc} Granger-cause OT — meaning their past values contain predictive information about oil temperature "
+                    f"<em>beyond what OT's own history already tells us</em>. "
+                    "This statistically justifies using these load columns as covariates in multivariate ML models."
+                )
+            if not_sig:
+                gc_interp.append(
+                    f"{not_desc} did <em>not</em> show significant Granger causality — "
+                    "their past values add little incremental predictive value once OT's own lags are accounted for."
+                )
+            gc_interp.append(
+                "<em>Important caveat:</em> Granger causality is a statistical association, not physical causation. "
+                "High load → more heat → higher OT is the physical mechanism, but the test only confirms predictive utility."
+            )
+
+            st.markdown(
+                '<div class="context-card" style="font-size:0.82rem; border-left: 3px solid #4C8BF5;">'
+                "<strong>What this means:</strong><br>"
+                + "<br><br>".join(gc_interp)
+                + "</div>",
+                unsafe_allow_html=True,
+            )
+
         except Exception as e:
             st.error(f"Granger causality test failed: {e}")
 
@@ -1737,6 +1887,7 @@ with tab5:
                 if dm_p < 0.05
                 else f"<strong>Not significant</strong> at p={dm_p:.4f} — cannot reject equal accuracy"
             )
+            rmse_diff_pct = abs(rmse_a - rmse_b) / max(rmse_a, rmse_b) * 100
             st.markdown(
                 f'<div class="context-card">'
                 f"<strong>{model_a_label}</strong> RMSE = {rmse_a:.4f} &nbsp;|&nbsp; "
@@ -1744,6 +1895,29 @@ with tab5:
                 f"DM statistic = {dm_stat:.4f}<br>"
                 f"p-value = <span style='color:{sig_color}; font-weight:600'>{dm_p:.4f}</span><br>"
                 f"{conclusion}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Contextual interpretation
+            if dm_p < 0.05:
+                dm_interp = (
+                    f"The {rmse_diff_pct:.1f}% RMSE gap between {model_a_label} and {model_b_label} is "
+                    f"<strong>statistically real</strong> — not sampling noise. "
+                    f"In a production deployment, choosing {winner} over the alternative is justified by evidence. "
+                    "However, also consider inference cost and latency: if the worse model is 10× faster and the "
+                    "gap is small in absolute terms (e.g., 0.1°C), the trade-off may still favour the simpler model."
+                )
+            else:
+                dm_interp = (
+                    f"The RMSE difference ({rmse_diff_pct:.1f}%) between {model_a_label} and {model_b_label} "
+                    f"<strong>cannot be distinguished from random variation</strong>. "
+                    "Both models are statistically equivalent on this test set. "
+                    "In this case, prefer the simpler model — lower training cost, easier to explain, less risk of overfitting on a different dataset."
+                )
+            st.markdown(
+                f'<div class="context-card" style="font-size:0.82rem; border-left: 3px solid #4C8BF5;">'
+                f"<strong>What to do with this result:</strong><br>{dm_interp}"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -1782,6 +1956,41 @@ with tab5:
                     )],
                 )
                 st.plotly_chart(fig_dm, use_container_width=True)
+
+                # Count significant pairs
+                n_sig = int(np.sum(dm_matrix < 0.05)) - n_m  # exclude diagonal
+                n_total_pairs = n_m * (n_m - 1)
+                pct_sig = n_sig / n_total_pairs * 100 if n_total_pairs > 0 else 0
+
+                # Find non-significant pairs (p >= 0.05, off-diagonal)
+                nonsig_pairs = []
+                for i, ki in enumerate(dm_models):
+                    for j, kj in enumerate(dm_models):
+                        if i < j and dm_matrix[i, j] >= 0.05:
+                            la = display_name(ki, results[ki].get("_model_key", ki))
+                            lb = display_name(kj, results[kj].get("_model_key", kj))
+                            nonsig_pairs.append(f"{la} vs {lb} (p={dm_matrix[i,j]:.3f})")
+
+                st.markdown(
+                    '<div class="context-card" style="font-size:0.82rem; border-left: 3px solid #4C8BF5;">'
+                    "<strong>How to read this matrix:</strong><br>"
+                    "Each cell (row=Model A, col=Model B) shows the DM p-value for whether A and B differ significantly. "
+                    "<strong>Green = significant</strong> (p&lt;0.05, real difference). "
+                    "<strong>Black = not significant</strong> (p≥0.05, models are statistically equivalent).<br><br>"
+                    f"<strong>Summary:</strong> {n_sig} of {n_total_pairs} pairs ({pct_sig:.0f}%) are significantly different. "
+                    + (
+                        f"Statistically equivalent pairs: {'; '.join(nonsig_pairs)}. "
+                        "For these pairs, prefer the simpler or faster model — the accuracy gain is within noise."
+                        if nonsig_pairs else
+                        "All model pairs are significantly different — each model occupies a distinct performance tier."
+                    )
+                    + "<br><br><strong>What to consider next:</strong><br>"
+                    "1. <strong>Model selection:</strong> Pick the best model from the top tier (lowest RMSE) that is statistically separated from others.<br>"
+                    "2. <strong>Ensemble opportunity:</strong> Models with significantly different errors may produce uncorrelated mistakes — blending them can reduce variance.<br>"
+                    "3. <strong>Test set caveat:</strong> DM tests are only valid on the same held-out test set. If you retrain on more data, rerun the test."
+                    "</div>",
+                    unsafe_allow_html=True,
+                )
 
 # ===========================================================================
 # TAB 6 — Ask AI (RAG)  [was tab5]
@@ -2002,13 +2211,11 @@ with tab6:
         "How would I run multivariate mode for XGBoost?",
     ]
 
-    if "chat_input" not in st.session_state:
-        st.session_state.chat_input = ""
-
     for i, qq in enumerate(quick_questions):
         col_idx = i % 3
         if quick_q_col[col_idx].button(qq, key=f"qq_{i}", use_container_width=True):
-            st.session_state.chat_input = qq
+            st.session_state.chat_textarea = qq   # directly override the widget state
+            st.session_state._auto_send = True
 
     st.divider()
 
@@ -2029,12 +2236,12 @@ with tab6:
     # Input
     user_query = st.text_area(
         "Your question",
-        value=st.session_state.chat_input,
         height=80,
         placeholder="e.g. Which model is best for production deployment? Why does XGBoost outperform Holt-Winters?",
         key="chat_textarea",
     )
-    st.session_state.chat_input = ""  # reset after rendering
+    _auto_send = st.session_state.get("_auto_send", False)
+    st.session_state._auto_send = False  # consume the flag
 
     send_col, clear_col = st.columns([PHI, 1])
     send_clicked = send_col.button("Send", type="primary", use_container_width=True, disabled=(not api_key))
@@ -2044,7 +2251,7 @@ with tab6:
         use_container_width=True,
     )
 
-    if send_clicked and user_query.strip() and api_key:
+    if (send_clicked or _auto_send) and user_query.strip() and api_key:
         # Retrieve relevant chunks
         retrieved = retrieve_chunks(user_query, knowledge_chunks, top_k=4)
         context_text = "\n\n---\n\n".join(f"[Source: {c['id']}]\n{c['text']}" for c in retrieved)
