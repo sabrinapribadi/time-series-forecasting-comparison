@@ -100,7 +100,8 @@ Dashboard (`src/ui/dashboard.py`) v3 reads `data/forecasts/ETT/*.json` at startu
 
 **API Key management:** `OPENAI_API_KEY` stored in `.streamlit/secrets.toml` (gitignored by `.gitignore`). Dashboard gracefully degrades — AI features show a warning if key is absent, all other tabs remain functional.
 
-**Streamlit Cloud deployment:** `requirements-streamlit.txt` lists only 5 deps (numpy, pandas, plotly, streamlit, openai). No torch/darts/catboost at runtime.
+**Streamlit Cloud deployment:** `requirements-streamlit.txt` lists only 5 deps (numpy, pandas, plotly, streamlit, openai). No torch/darts/catboost at runtime.  
+**Live URL:** https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/
 
 ## Positive Consequences
 
