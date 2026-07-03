@@ -465,7 +465,7 @@ Rolling features (all shifted by 1 to prevent leakage):
 | Risk | Mitigation | Status |
 |------|-----------|--------|
 | DL models undertrained | Ran 5–30 epochs (MPS/CPU limit); documented in README benchmark table | Documented |
-| MAPE undefined on negative OT | compute_mape skips |y|<0.1; SMAPE/MAAPE used as alternatives | Resolved |
+| MAPE undefined on negative OT | compute_mape skips abs(y)<0.1; ETT OT min≈−4.5°C; SMAPE/MAAPE used as primary percentage metrics | Resolved |
 | MPS float64 error (Darts) | Cast all series to float32 before TimeSeries.from_series() | Resolved |
 | LSTM checkpoint 2 bytes | Save results JSON BEFORE joblib.dump; move _net to CPU first | Resolved |
 | ML oracle advantage | Documented in README note; future: recursive evaluation without oracle | Documented |
