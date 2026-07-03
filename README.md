@@ -4,6 +4,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![Darts](https://img.shields.io/badge/Darts-0.27-0099CC?style=for-the-badge)](https://unit8co.github.io/darts/)
 [![Dataset](https://img.shields.io/badge/Dataset-ETT-00BFFF?style=for-the-badge)](https://github.com/zhouhaoyi/ETDataset)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/)
 
 ## Why This Project
 
@@ -425,6 +426,8 @@ OPENAI_API_KEY = "sk-..."
 ```
 
 ### Streamlit Cloud Deployment
+
+**Live app:** https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/
 
 Use `requirements-streamlit.txt` (5 lightweight deps, no torch/darts/catboost) and add `OPENAI_API_KEY` in the Streamlit Cloud Secrets panel.
 
