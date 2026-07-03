@@ -425,7 +425,7 @@ def load_results() -> dict:
 
 @st.cache_data
 def load_ett_data(variant: str = "h1") -> pd.DataFrame | None:
-    path = RAW_DIR / f"ETT{variant[0].upper()}{variant[1]}.csv"
+    path = RAW_DIR / f"ETT{variant}.csv"
     if not path.exists():
         return None
     df = pd.read_csv(path, parse_dates=["date"])
@@ -1384,7 +1384,7 @@ with tab4:
     ett_df = load_ett_data(ett_variant)
 
     if ett_df is None:
-        st.warning(f"ETT{ett_variant[0].upper()}{ett_variant[1]}.csv not found in data/raw/ETT/.")
+        st.warning(f"ETT{ett_variant}.csv not found in data/raw/ETT/.")
     else:
         n_rows = len(ett_df)
         col_def, col_stats = st.columns([PHI, 1])
