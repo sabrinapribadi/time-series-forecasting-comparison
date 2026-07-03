@@ -9,8 +9,6 @@
 
 Practitioners choosing a forecasting model face a confusing landscape: statistical methods are fast and interpretable, ML models handle non-linearity well, and deep learning models promise the highest accuracy — but come with steep compute costs. This project runs all three families side-by-side on the same dataset under the same evaluation protocol, so the accuracy/complexity trade-offs are visible and reproducible.
 
-A secondary goal is to mirror two IOH internal production pipelines (AOP2026 monthly data traffic forecasting and the IMPACT congestion forecasting project), bridging academic benchmarks and operational telecom forecasting practice.
-
 ## System Architecture
 
 ```mermaid
@@ -134,7 +132,7 @@ GOSS: keep large-gradient instances + random sample small-gradient ones
 EFB: bundle mutually exclusive sparse features into single feature
 ```
 
-Uses IOH AOP2026 production hyperparameters: `reg_alpha=0.1, reg_lambda=0.1, n_estimators=500`.
+Uses well-regularized fixed defaults: `reg_alpha=0.1, reg_lambda=0.1, n_estimators=500`.
 
 #### CatBoost
 
@@ -267,11 +265,11 @@ Forecast OT from its own history. Features: cyclical time encodings + autoregres
 | `OT_trend_3` | polyfit slope on last 3 points, shift(1) | Instantaneous slope |
 
 ### Multivariate (`--mode multivariate`)
-Adds all 6 load columns as covariates for ML models — analogous to the `Volume_WD_GB` chained regressor in the IOH congestion pipeline. Expands feature matrix from 11 to 17 columns.
+Adds all 6 load columns as covariates for ML models. Expands feature matrix from 11 to 17 columns.
 
 ## Hyperparameter Tuning (Optuna)
 
-IOH AOP2026 production trial counts, enabled via `--tune`:
+Enabled via `--tune`:
 
 | Model | Trials | Objective | Direction |
 |-------|--------|-----------|-----------|
@@ -279,7 +277,7 @@ IOH AOP2026 production trial counts, enabled via `--tune`:
 | Random Forest | 10 | R² on validation | Maximize |
 | CatBoost | 8 | R² on validation | Maximize |
 | XGBoost | 50 | R² on validation | Maximize |
-| LightGBM | — | Fixed IOH production params | — |
+| LightGBM | — | Fixed regularized defaults | — |
 
 ## Evaluation Metrics
 
@@ -287,8 +285,8 @@ IOH AOP2026 production trial counts, enabled via `--tune`:
 |--------|---------|------|-------|
 | RMSE | √(mean((y−ŷ)²)) | Lower | Penalises large errors |
 | MAE | mean(\|y−ŷ\|) | Lower | Robust to outliers |
-| MAPE | mean(\|y−ŷ\|/\|y\|)×100 | Lower | Skips \|y\|<0.1 (ETT has negative OT) |
-| SMAPE | mean(\|y−ŷ\|/((|y|+|ŷ|)/2))×100 | Lower | Symmetric; range [0,200] |
+| MAPE | mean(\|y−ŷ\|/\|y\|)×100 | Lower | Skips \|y\|<0.1 — ETT OT is unbounded (min≈−4.5°C); MAPE is undefined at zero and inflated near zero. Partial metric; use SMAPE/MAAPE as primary percentage metrics |
+| SMAPE | mean(\|y−ŷ\|/((|y|+|ŷ|)/2))×100 | Lower | Symmetric; range [0,200]; handles negative OT gracefully — preferred over MAPE in the benchmark table |
 | MASE | MAE / MAE(naive) | <1 beats naive | Scale-free across variants |
 | R² | 1−SS_res/SS_tot | Higher | 1.0 = perfect |
 | MDA | mean(sign(Δy)==sign(Δŷ))×100 | Higher | Directional accuracy % |
@@ -318,7 +316,7 @@ time-series-forecasting-comparison/
 │   │                              # mode='univariate'|'multivariate', rolling features
 │   ├── models/
 │   │   ├── statistical.py         # HoltWinters (+ Optuna), ARIMA, Prophet
-│   │   ├── ml.py                  # RF, XGBoost, LightGBM (IOH params), CatBoost (+ Optuna)
+│   │   ├── ml.py                  # RF, XGBoost, LightGBM, CatBoost (+ Optuna)
 │   │   └── deep_learning.py       # LSTM (PyTorch), Transformer/N-BEATS/TFT (Darts)
 │   ├── evaluation/
 │   │   └── metrics.py             # RMSE, MAE, MAPE, SMAPE, MASE, R², MDA, Bias, MAAPE
@@ -336,7 +334,7 @@ time-series-forecasting-comparison/
 │   └── forecasts/ETT/             # Per-model JSON results (committed — dashboard source)
 ├── configs/
 │   ├── default_config.yaml        # Split ratios, horizon, lag_steps
-│   └── optuna_configs.yaml        # Per-model Optuna search spaces + IOH trial counts
+│   └── optuna_configs.yaml        # Per-model Optuna search spaces and trial counts
 ├── docs/
 │   ├── PRD.md                     # Full product requirements + data definition
 │   ├── ARCHITECTURE.md            # Mermaid diagrams + module descriptions
@@ -374,7 +372,7 @@ poetry run python scripts/train_model.py --model xgboost --variant h1
 # Multivariate mode — ML models receive all 6 load columns as covariates
 poetry run python scripts/train_model.py --model catboost --variant h1 --mode multivariate
 
-# With Optuna HPO (IOH production trial counts)
+# With Optuna HPO
 poetry run python scripts/train_model.py --model catboost --variant h1 --tune
 poetry run python scripts/train_model.py --model holt_winters --variant h1 --tune
 

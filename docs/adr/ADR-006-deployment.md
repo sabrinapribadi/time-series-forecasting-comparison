@@ -134,7 +134,7 @@ After measuring train vs test RMSE gaps, targeted fixes were applied and models 
 |-------|---------|-----|--------|-------|
 | Random Forest | 2.13× gap | Optuna max_features search (sqrt/log2/0.5/0.7/1.0); max_depth≤10 found | RMSE=0.783 | RMSE=0.703, gap=1.06× ✅ |
 | XGBoost | 1.23× gap | early_stopping_rounds=50 in XGBRegressor() constructor (XGBoost 2.x API); reg_alpha/reg_lambda in Optuna | RMSE=0.847 | RMSE updated post-retrain |
-| LightGBM | 1.10× (OK) | No change — IOH AOP2026 params already well-regularised | RMSE=0.755 | unchanged |
+| LightGBM | 1.10× (OK) | No change — fixed regularized defaults already well-fitted | RMSE=0.755 | unchanged |
 | CatBoost | 0.82× (OK) | No change — ordered boosting gives conservative in-sample by design | RMSE=0.744 | unchanged |
 
 **DL Underfitting (all models RMSE > 3.0 vs ML < 0.85) — final results:**

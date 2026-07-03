@@ -22,7 +22,7 @@ The choice determines which model families are applicable and directly affects h
 - Statistical models (ARIMA, Holt-Winters) cannot consume exogenous features without significant modification
 - Deep learning models (TFT, Transformer) are specifically designed for multivariate time series
 - A univariate comparison isolates model architecture differences from feature richness differences
-- IOH IMPACT congestion project uses a multivariate approach: `Volume_WD_GB` as a chained regressor for Prophet and XGBoost — this pattern should be available for ML models in Phase 2
+- A multivariate approach (conditioning ML models on exogenous covariates) should be available as Phase 2
 
 ## Considered Options
 
@@ -34,12 +34,12 @@ The choice determines which model families are applicable and directly affects h
 **Option B — Multivariate only**
 - Pros: More realistic (production forecasters use all available signals)
 - Cons: Cannot run statistical models as direct baselines; comparison is confounded
-- Why considered: IOH production pipelines use multivariate inputs
+- Why considered: Production forecasting pipelines typically use multivariate inputs
 
 **Option C — Univariate first, multivariate as optional mode (chosen)**
 - Pros: Phase 1 is a fair cross-family benchmark; Phase 2 shows the covariate uplift separately; statistical models remain as honest baselines
 - Cons: Requires two code paths (--mode flag)
-- Why considered: Best of both; mirrors IOH AOP2026 approach of starting simple
+- Why considered: Best of both; start simple, extend to multivariate in Phase 2
 
 ## Decision Outcome
 
@@ -77,4 +77,4 @@ Hierarchical forecasting is out of scope — it applies when individual series m
 ## References
 
 - Zhou et al. (2021). Informer: Beyond Efficient Transformer for Long Sequence Time-Series Forecasting. AAAI. https://arxiv.org/abs/2012.07436
-- IOH IMPACT Congestion Forecasting: multivariate Prophet/XGBoost with Volume_WD_GB as chained regressor
+- Zhou et al. (2021). Informer: multivariate ETT benchmarks use both univariate and multivariate splits

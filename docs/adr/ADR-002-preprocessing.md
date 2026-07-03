@@ -13,7 +13,7 @@ Tree-based ML models and neural networks need numerical features — they cannot
 1. **How to encode time-of-day, day-of-week, and month-of-year**: linear integers vs. cyclical sin/cos vs. one-hot
 2. **How to capture temporal dependencies for ML models**: lag features vs. rolling statistics vs. nothing (leave sequence modelling to the model)
 
-Additionally, the IOH AOP2026 pipeline uses enhanced rolling features (rolling_mean_3, rolling_std_3, trend_3, growth_rate) that have proven useful in production monthly forecasting.
+Rolling statistics (rolling_mean_3, rolling_std_3, trend_3, growth_rate) capture short-term trend and volatility without requiring the model to select the relevant lag window.
 
 ## Decision Drivers
 
@@ -21,7 +21,7 @@ Additionally, the IOH AOP2026 pipeline uses enhanced rolling features (rolling_m
 - One-hot encoding requires 24+7+12=43 additional columns; cyclical requires only 6
 - Lag features are essential for tree-based models, which have no built-in sequence memory
 - Rolling statistics provide summary statistics of recent history without requiring the model to select the relevant lag window
-- IOH AOP2026 uses: `rolling_mean_3`, `rolling_std_3`, `trend_3` (linear slope), `growth_rate` (pct_change) — all shifted by 1 step to prevent leakage
+- Rolling features chosen: `rolling_mean_3`, `rolling_std_3`, `trend_3` (linear slope), `growth_rate` (pct_change) — all shifted by 1 step to prevent leakage
 - All derived features must be strictly backward-looking: no future information in training data
 
 ## Considered Options
@@ -61,7 +61,7 @@ Lag features for ML models (ADR-005):
 | OT_lag_2 | 2 steps | Second most recent |
 | OT_lag_24 | 24 steps | Previous day same hour (hourly); OT_lag_4/OT_lag_96 for 15-min |
 
-Rolling statistics (from IOH AOP2026 production pipeline, all shifted by 1):
+Rolling statistics (all shifted by 1 to prevent leakage):
 
 | Feature | Formula | Purpose |
 |---------|---------|---------|
@@ -97,5 +97,4 @@ Rolling statistics (from IOH AOP2026 production pipeline, all shifted by 1):
 
 ## References
 
-- IOH AOP2026 Forecasting Pipeline: rolling_mean_3, rolling_std_3, trend_3, growth_rate feature engineering
 - Hyndman & Athanasopoulos (2021). Forecasting: Principles and Practice. Chapter 7

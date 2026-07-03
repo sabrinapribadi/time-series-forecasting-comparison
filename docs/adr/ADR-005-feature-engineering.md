@@ -26,7 +26,7 @@ This choice also determines whether the benchmark comparison between ML and stat
 - The project goal is benchmarking, not production deployment simulation
 - Oracle evaluation is standard in academic ML-for-time-series papers (Informer, PatchTST, etc.)
 - Oracle gives an upper bound on ML model capability — useful for understanding the value of each feature
-- IOH production IMPACT congestion forecasting also uses oracle lag evaluation in its holdout analysis
+- Oracle evaluation is the standard in academic ML-for-time-series benchmarks (Informer, PatchTST, etc.)
 - Recursive evaluation for 3,484 steps would require re-architecture of the predict() API (expose rolling prediction loop with state), adding significant complexity
 - The oracle assumption is explicitly documented so readers understand the benchmark conditions
 
@@ -101,5 +101,4 @@ Forecast all 3,484 test steps in one shot from training data alone — no oracle
 
 ## References
 
-- IOH IMPACT Congestion Forecasting: oracle lag evaluation in holdout analysis
 - Zhou et al. (2021). Informer: uses precomputed look-back window as input — equivalent to oracle on evaluation set

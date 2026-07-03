@@ -14,13 +14,13 @@ With 11 models across 3 families, the project must decide:
 2. **Whether to tune hyperparameters**: default configs vs. Optuna HPO
 3. **How many epochs for DL models**: under-compute is a known risk on CPU/MPS
 
-Additionally, the IOH AOP2026 pipeline uses **rule-based per-site model selection** based on 6 time-series characteristics (volatility, trend_strength, seasonality_strength, stability, avg_growth, growth_consistency). This pattern is useful for production pipelines with hundreds of series but less relevant for a single-target academic benchmark.
+Rule-based per-site model selection (based on series characteristics such as volatility, trend_strength, seasonality_strength) is useful for production pipelines with hundreds of series but less relevant for a single-target academic benchmark.
 
 ## Decision Drivers
 
 - The explicit goal is benchmarking: all models must run to produce a comparison table
-- Rule-based selection is a production pattern (IOH AOP2026), not a benchmarking pattern
-- Optuna HPO is used in IOH production (HoltWinters 15 trials, RF 10 trials, CatBoost 8 trials) — the same pattern should be available here
+- Rule-based selection is a production pattern, not a benchmarking pattern
+- Optuna HPO (HoltWinters 15 trials, RF 10 trials, CatBoost 8 trials) should be available as an optional `--tune` flag
 - DL models need 100+ epochs for fair comparison; MPS/CPU limits make this slow
 - Optuna must be optional (default hyperparameters for the primary benchmark; HPO as --tune flag)
 
@@ -31,22 +31,22 @@ Additionally, the IOH AOP2026 pipeline uses **rule-based per-site model selectio
 - Cons: Default hyperparameters may heavily favour some models; DL models need many epochs
 - Why considered: Simplest baseline comparison
 
-**Option B — Rule-based pre-selection (IOH AOP2026 pattern)**
+**Option B — Rule-based pre-selection**
 - Pros: Mimics production deployment; only trains the "right" model per series
-- Cons: Precludes side-by-side comparison; site-characteristic metrics need to be computed first; rules are calibrated for monthly telecom data, not hourly electricity
-- Why considered: Directly applicable from IOH AOP2026 pipeline
+- Cons: Precludes side-by-side comparison; series-characteristic metrics need to be computed first
+- Why considered: Practical for pipelines with hundreds of series
 
 **Option C — Compare all 11 with optional Optuna HPO (chosen)**
-- Pros: All models run in primary benchmark; HPO available for fair tuned comparison; Optuna configs mirror IOH production trial counts
+- Pros: All models run in primary benchmark; HPO available for fair tuned comparison
 - Cons: More compute time; requires two run modes (default vs. --tune)
-- Why considered: Best of both — benchmark completeness + production HPO practice
+- Why considered: Best of both — benchmark completeness + HPO for tunable models
 
 ## Decision Outcome
 
 **Chosen: Option C — Compare all 11 models; Optuna HPO optional via `--tune` flag.**
 
 Primary benchmark: default hyperparameters from `configs/default_config.yaml`.  
-HPO benchmark: `--tune` flag enables Optuna with IOH production trial counts.
+HPO benchmark: `--tune` flag enables Optuna with per-model trial counts.
 
 Model families and expected trade-offs:
 
@@ -56,15 +56,15 @@ Model families and expected trade-offs:
 | ML (tree-based) | Handles non-linearity + covariates; fast inference | Requires lag features; no explicit sequence memory |
 | Deep Learning | Long-range dependencies; architecture flexibility | Slow to train; needs GPU for fair evaluation |
 
-Tunable models and Optuna configuration (from IOH projects):
+Tunable models and Optuna configuration:
 
-| Model | Trials | Objective | IOH Source |
-|-------|--------|-----------|-----------|
-| HoltWinters | 15 | Minimize RMSE (train residuals) | AOP2026 |
-| RandomForest | 10 | Maximize R² (val) | AOP2026 |
-| CatBoost | 8 | Maximize R² (val) | AOP2026 |
-| XGBoost | 50 | Maximize R² (val) | Extended from AOP2026 |
-| LightGBM | — | Fixed IOH production params | AOP2026 (fixed) |
+| Model | Trials | Objective |
+|-------|--------|-----------|
+| HoltWinters | 15 | Minimize RMSE (train residuals) |
+| RandomForest | 10 | Maximize R² (val) |
+| CatBoost | 8 | Maximize R² (val) |
+| XGBoost | 50 | Maximize R² (val) |
+| LightGBM | — | Fixed regularized defaults (no tuning) |
 
 DL models are not tuned via `--tune` in Phase 1 (compute cost too high on MPS/CPU).
 
@@ -97,5 +97,4 @@ DL models are not tuned via `--tune` in Phase 1 (compute cost too high on MPS/CP
 
 ## References
 
-- IOH AOP2026 Pipeline: rule-based 6-metric model selection (volatility, trend_strength, seasonality_strength, stability, avg_growth, growth_consistency)
 - Akiba et al. (2019). Optuna: A Next-generation Hyperparameter Optimization Framework. KDD. https://arxiv.org/abs/1907.10902

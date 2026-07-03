@@ -16,14 +16,12 @@ defaults to convention ("ARIMA for time series", "XGBoost always wins") rather t
 Solution: A reproducible end-to-end pipeline that trains 11 models across 3 families (statistical,
 ML, deep learning) on the ETT (Electricity Transformer Temperature) dataset, evaluates each on
 9 metrics, and publishes results to a Streamlit dashboard. Incorporates univariate and multivariate
-modes, rolling statistical features, and Optuna hyperparameter tuning drawn from two IOH internal
-production pipelines (AOP2026 monthly data traffic forecasting and the IMPACT congestion forecasting
-project).
+modes, rolling statistical features, and Optuna hyperparameter tuning.
 
 Value Proposition: Three things at once — a rigorous academic benchmark (ETT, standard 70/10/20
-split, RMSE/MAE/MAPE/SMAPE/MASE/R²/MDA/Bias/MAAPE evaluation), a bridge to production telecom
-forecasting practice (IOH HPO trial counts, oracle lag filling, multivariate covariates), and a
-Streamlit dashboard that works from pre-computed JSON without model weights.
+split, RMSE/MAE/MAPE/SMAPE/MASE/R²/MDA/Bias/MAAPE evaluation), a practical HPO framework
+(oracle lag filling, multivariate covariates, Optuna), and a Streamlit dashboard that works from
+pre-computed JSON without model weights.
 
 Success Metrics:
 - All 11 models train successfully on ETTh1 and produce valid predictions
@@ -53,8 +51,8 @@ This project was built to demonstrate capabilities across:
    fusion with variable selection and gated residual networks). MPS/CUDA/CPU auto-detection
    with float32 casting for Apple Silicon compatibility.
 
-5. Hyperparameter Optimisation: Optuna search with trial counts and objectives mirroring IOH
-   AOP2026 production practice (HoltWinters 15 trials RMSE, RF 10 trials R², CatBoost 8 trials R²).
+5. Hyperparameter Optimisation: Optuna search with per-model trial counts and objectives
+   (HoltWinters 15 trials RMSE, RF 10 trials R², CatBoost 8 trials R², XGBoost 50 trials R²).
 
 6. Deployment Engineering: Pre-computed JSON predictions committed to data/forecasts/ETT/;
    Streamlit dashboard reads JSON only — no model weights, no retraining at runtime.
@@ -78,9 +76,9 @@ This project was built to demonstrate capabilities across:
     its thread pool (exit code 139). Fixed with OMP/MKL/OPENBLAS_NUM_THREADS=1 in train_model.py
     and nthread=1 / num_threads=1 in the model constructors.
 
-11. IOH Production Bridge: Feature engineering patterns (rolling_mean_3, rolling_std_3, trend_3,
-    growth_rate) from AOP2026 pipeline; multivariate covariates from congestion IMPACT project;
-    additional metrics (MDA, Bias, MAAPE) from congestion metrics library.
+11. Extended Feature Engineering: Rolling features (rolling_mean_3, rolling_std_3, trend_3,
+    growth_rate) complement lag features for ML models; multivariate covariate mode exposes all
+    6 load columns; additional metrics (MDA, Bias, MAAPE) extend standard RMSE/MAE reporting.
 
 12. Overfitting Diagnostic (v5): scripts/train_model.py now computes and saves train_metrics
     (in-sample RMSE, MAE, R² etc.) alongside test metrics for all ML and LSTM models. Model
@@ -149,7 +147,7 @@ This project was built to demonstrate capabilities across:
     fundamental advantage of ML oracle lag features. DL models improved architecture but the
     ML vs DL RMSE gap (0.70 vs 3.5+) is driven by data access, not model capacity.
 
-    No action for LightGBM (1.10× gap — well-fitted with IOH AOP2026 params) or CatBoost
+    No action for LightGBM (1.10× gap — well-fitted with fixed regularized defaults) or CatBoost
     (0.82× gap — ordered boosting makes conservative in-sample estimates by design).
 
 Data Source: ETT (Electricity Transformer Temperature Dataset)
@@ -167,8 +165,8 @@ In-Scope:
 - Dataset: ETT (all 4 variants; primary benchmark on ETTh1)
 - Models: 11 models across statistical, ML, and deep learning families
 - Modes: Univariate (OT history) and Multivariate (+ 6 load covariates)
-- Feature Engineering: Cyclical time features, OT lags, rolling stats + trend (AOP2026 pattern)
-- HPO: Optuna tuning for HoltWinters, RandomForest, XGBoost, CatBoost (IOH trial counts)
+- Feature Engineering: Cyclical time features, OT lags, rolling stats + trend
+- HPO: Optuna tuning for HoltWinters, RandomForest, XGBoost, CatBoost
 - Evaluation: 9 metrics (RMSE, MAE, MAPE, SMAPE, MASE, R², MDA, Bias, MAAPE)
 - Deployment: Pre-computed JSON + Streamlit 6-tab dashboard (v2)
 - AI Features: RAG Ask AI (GPT-4o mini + keyword retrieval) + AI Explainability (streaming bullets)
@@ -191,7 +189,6 @@ Out-of-Scope (current version):
 |---------|------|-----------|
 | Alex (ML Engineer) | Choose the right model for a new load forecasting task | No controlled comparison — papers compare on different datasets |
 | Maria (Data Scientist) | Understand when deep learning actually beats statistical baselines | DL papers cherry-pick results; no honest accounting |
-| James (Telecom Analyst) | Apply IOH forecasting patterns (AOP2026, IMPACT) to a new domain | Production patterns are buried in internal PDFs, not public code |
 | Dana (Researcher) | Reproduce published ETT benchmarks | Many papers use ETT but with different preprocessing choices |
 | Sam (Dashboard User) | Compare model performance without running code | Raw .joblib checkpoints are not browsable |
 
@@ -199,7 +196,6 @@ User Stories Implemented:
 - As an ML engineer, I can train any of the 11 models with a single command and compare RMSE.
 - As a data scientist, I can switch between univariate and multivariate modes to measure the
   impact of adding load covariates to ML models.
-- As a telecom analyst, I can run Optuna HPO with the same trial counts used in IOH AOP2026.
 - As a researcher, I can reproduce the exact train/val/test split (70/10/20 chronological) and
   feature engineering choices documented in ADR-002 and ADR-003.
 - As a dashboard user, I can compare all 11 models side-by-side without running any training.
@@ -216,7 +212,7 @@ Module A: Data Loading (ETTLoader)
 - A.4 Lag features: OT_lag_1, OT_lag_2, OT_lag_24 for hourly (OT_lag_1/4/96 for 15-min);
        NaN rows dropped after lag computation; enabled for ML models only (ADR-005)
 - A.5 Rolling features: OT_rolling_mean_3, OT_rolling_std_3, OT_growth_rate, OT_trend_3
-       all shifted by 1 step to prevent leakage (from IOH AOP2026 feature engineering)
+       all shifted by 1 step to prevent leakage
 - A.6 Modes:
        univariate  — drops HUFL/HULL/MUFL/MULL/LUFL/LULL from returned DataFrames
        multivariate — keeps all 6 load columns as ML covariates; 17 feature columns vs 11
@@ -241,7 +237,7 @@ Module C: ML Models (src/models/ml.py)
        Optional: tune_with_optuna(X_tr, y_tr, X_val, y_val, n_trials=50) — maximize R² on val
        Optuna search (v6): n_estimators, max_depth, learning_rate, subsample, colsample_bytree,
        min_child_weight, reg_alpha, reg_lambda (L1+L2 added in v6 alongside early stopping)
-- C.3 LightGBMModel: lightgbm LGBMRegressor with IOH AOP2026 production params:
+- C.3 LightGBMModel: lightgbm LGBMRegressor with fixed regularized defaults:
        n_estimators=500, reg_alpha=0.1, reg_lambda=0.1, num_leaves=31; no Optuna (fixed, 1.10× gap)
 - C.4 CatBoostModel: catboost CatBoostRegressor; fit(X, y, X_val, y_val); predict(X)
        Optional: tune_with_optuna(X_tr, y_tr, X_val, y_val, n_trials=8) — maximize R² on val
@@ -373,7 +369,7 @@ Lag features (ML models only — oracle filling on test set, ADR-005):
 | OT_lag_2 | OT shifted 2 steps |
 | OT_lag_24 | OT shifted 24 steps (seasonal lag for hourly) |
 
-Rolling features (from IOH AOP2026, all shifted by 1 to prevent leakage):
+Rolling features (all shifted by 1 to prevent leakage):
 | Column | Formula | Purpose |
 |--------|---------|---------|
 | OT_rolling_mean_3 | rolling(3).mean().shift(1) | Short-term level |
@@ -440,8 +436,8 @@ Rolling features (from IOH AOP2026, all shifted by 1 to prevent leakage):
 | 3 | ML models (RF, XGBoost, LightGBM, CatBoost) | Complete |
 | 4 | Deep learning (LSTM, Transformer, N-BEATS, TFT) | Complete |
 | 5 | Evaluation metrics, train_model.py, dashboard | Complete |
-| 6 | Multivariate mode, rolling features (IOH AOP2026) | Complete |
-| 7 | Optuna HPO (IOH trial counts), additional metrics | Complete |
+| 6 | Multivariate mode, rolling features | Complete |
+| 7 | Optuna HPO, additional metrics | Complete |
 | 8 | Full benchmark on ETTh1, results committed | Complete |
 | 9 | Full 100+ epoch DL run on GPU for fair comparison | Planned |
 | 10 | ETTh2/ETTm1/ETTm2 benchmark extension | Planned |
@@ -490,8 +486,8 @@ Data pipeline (achieved):
 Training pipeline (achieved):
 - All 11 models train on ETTh1 and produce JSON results
 - Multivariate mode expands ML feature matrix to 17 columns
-- Optuna HPO runs for HoltWinters, RF, XGBoost, CatBoost with IOH trial counts
-- LightGBM uses IOH production params (reg_alpha=0.1, reg_lambda=0.1)
+- Optuna HPO runs for HoltWinters, RF, XGBoost, CatBoost
+- LightGBM uses fixed regularized defaults (reg_alpha=0.1, reg_lambda=0.1)
 
 Evaluation (achieved):
 - 9 metrics computed per model (RMSE, MAE, MAPE, SMAPE, MASE, R², MDA, Bias, MAAPE)
@@ -529,8 +525,8 @@ DL models (fully retrained with early stopping, 100 max epochs):
 - Transformer, N-BEATS, TFT: EarlyStopping(patience=15) via PyTorch Lightning callbacks
 - Expected to outperform statistical models; DL results updated after retraining completes
 
-IOH patterns confirmed effective:
-- LightGBM with IOH AOP2026 params (reg_alpha=0.1, reg_lambda=0.1) best among ML on RMSE
+Regularization confirmed effective:
+- LightGBM with reg_alpha=0.1, reg_lambda=0.1 well-fitted (1.10× gap)
 - CatBoost ordered boosting gives near-zero train bias and strong test R² (0.953)
 - Rolling features (OT_rolling_mean_3, OT_trend_3) improve feature richness for all ML models
 
@@ -540,11 +536,6 @@ IOH patterns confirmed effective:
 - Dataset: github.com/zhouhaoyi/ETDataset (MIT License)
 - Tech Stack: statsmodels, pmdarima, prophet, sklearn, xgboost, lightgbm, catboost,
   PyTorch, Darts, Optuna, Streamlit, Plotly, Pandas, NumPy, Poetry
-- IOH Reference Projects:
-    AOP2026: Monthly data traffic forecasting pipeline — rule-based model selection (6 metrics),
-             rolling feature engineering, Optuna HPO trial counts
-    IMPACT Congestion: Univariate + multivariate Prophet/XGBoost, custom weekly seasonality,
-                       growth_gap selection metric, MDA/Bias/MAAPE/RMSPE/UMBRAE metrics
 - ADR Index (see docs/adr/README.md for full index):
     ADR-001: Univariate first, multivariate Phase 2 (amended — multivariate now live)
     ADR-002: Cyclical encoding + lag features + rolling statistics

@@ -73,7 +73,6 @@ def compute_mda(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     Mean Directional Accuracy (%). Higher is better; 50% = random.
     Measures how often the forecast direction (up/down) matches actual.
-    From IOH congestion metrics library.
     """
     if len(y_true) < 2:
         return float("nan")
@@ -85,7 +84,7 @@ def compute_mda(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 def compute_bias(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     Forecast Bias — mean signed error (positive = over-forecast, negative = under-forecast).
-    From IOH congestion metrics library. Range: (-∞, +∞), ideal = 0.
+    Range: (-∞, +∞), ideal = 0.
     """
     return float(np.mean(y_pred - y_true))
 
@@ -94,7 +93,6 @@ def compute_maape(y_true: np.ndarray, y_pred: np.ndarray, eps: float = 1e-8) -> 
     """
     Mean Arctangent Absolute Percentage Error (degrees). Lower is better.
     Uses arctan instead of direct ratio — handles near-zero actuals gracefully.
-    From IOH congestion metrics library.
     """
     return float(np.mean(np.arctan(np.abs((y_true - y_pred) / (np.abs(y_true) + eps)))) * 100)
 
