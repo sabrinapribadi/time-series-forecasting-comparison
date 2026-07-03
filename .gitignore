@@ -82,3 +82,6 @@ poetry.lock
 *.bak
 *.tmp
 *~
+
+# Raw screenshots (originals kept local; curated copies live in assets/)
+screenshots/
