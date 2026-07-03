@@ -10,6 +10,20 @@
 
 Practitioners choosing a forecasting model face a confusing landscape: statistical methods are fast and interpretable, ML models handle non-linearity well, and deep learning models promise the highest accuracy — but come with steep compute costs. This project runs all three families side-by-side on the same dataset under the same evaluation protocol, so the accuracy/complexity trade-offs are visible and reproducible.
 
+## Dashboard Preview
+
+**Live app:** https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/
+
+| Benchmark Results | Forecast Gallery |
+|:---:|:---:|
+| ![Benchmark Results — KPI cards, ranked bar chart, and full metrics table across all 11 models](assets/screenshot-benchmark.png) | ![Forecast Gallery — all 11 model predictions overlaid on the ETTh1 test set](assets/screenshot-gallery.png) |
+
+| Model Inspector (Random Forest) | Diebold-Mariano Pairwise Matrix |
+|:---:|:---:|
+| ![Model Inspector — actual vs predicted, residuals, feature importance, and overfitting diagnostic](assets/screenshot-inspector.png) | ![Statistical Tests — pairwise DM p-value matrix showing which model differences are statistically significant](assets/screenshot-stats.png) |
+
+![Ask AI — RAG-powered assistant answering questions about the benchmark using GPT-4o mini](assets/screenshot-ask-ai.png)
+
 ## System Architecture
 
 ```mermaid
