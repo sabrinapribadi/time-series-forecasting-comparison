@@ -44,7 +44,7 @@ class ETTVariant(str, Enum):
 
     @property
     def filename(self) -> str:
-        return f"ETT{self.value[0].upper()}{self.value[1]}.csv"
+        return f"ETT{self.value}.csv"
 
     @property
     def frequency(self) -> str:
