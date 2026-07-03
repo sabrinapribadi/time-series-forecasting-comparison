@@ -79,6 +79,8 @@ class RandomForestModel:
                 "max_depth": trial.suggest_categorical("max_depth", [None, 5, 10, 15, 20]),
                 "min_samples_split": trial.suggest_int("min_samples_split", 2, 20),
                 "min_samples_leaf": trial.suggest_int("min_samples_leaf", 1, 10),
+                # max_features controls decorrelation between trees — key lever against overfit
+                "max_features": trial.suggest_categorical("max_features", ["sqrt", "log2", 0.5, 0.7, 1.0]),
             }
             m = RandomForestRegressor(**params, n_jobs=-1, random_state=42)
             m.fit(X_train, y_train)
@@ -121,6 +123,8 @@ class XGBoostModel:
     ):
         from xgboost import XGBRegressor
 
+        # XGBoost 2.x: early_stopping_rounds lives in the constructor, not fit().
+        # Passing it here activates it automatically when fit() receives eval_set.
         self._model = XGBRegressor(
             n_estimators=n_estimators,
             max_depth=max_depth,
@@ -128,6 +132,7 @@ class XGBoostModel:
             subsample=subsample,
             colsample_bytree=colsample_bytree,
             min_child_weight=min_child_weight,
+            early_stopping_rounds=50,
             random_state=random_state,
             verbosity=0,
             nthread=1,  # prevents segfault on macOS with XGBoost 2.x multi-threading
@@ -142,6 +147,8 @@ class XGBoostModel:
         y_val: np.ndarray | None = None,
     ) -> "XGBoostModel":
         eval_set = [(X_val, y_val)] if X_val is not None else None
+        # early_stopping_rounds is set in the constructor (XGBoost 2.x API).
+        # It activates automatically when eval_set is provided here.
         self._model.fit(X_train, y_train, eval_set=eval_set, verbose=False)
         logger.info(f"XGBoost fitted on {X_train.shape}")
         return self
@@ -169,8 +176,11 @@ class XGBoostModel:
                 "subsample": trial.suggest_float("subsample", 0.5, 1.0),
                 "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
                 "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+                # L1/L2 regularisation reduces 1.23× overfit gap alongside early stopping
+                "reg_alpha": trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
+                "reg_lambda": trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
             }
-            m = XGBRegressor(**params, random_state=42, verbosity=0)
+            m = XGBRegressor(**params, random_state=42, verbosity=0, early_stopping_rounds=50)
             m.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
             return compute_r2(y_val, m.predict(X_val))
 

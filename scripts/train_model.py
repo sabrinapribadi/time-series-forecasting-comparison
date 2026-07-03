@@ -119,7 +119,7 @@ def main():
         action="store_true",
         help=f"Run Optuna HPO before fitting. Supported: {sorted(TUNABLE)}",
     )
-    parser.add_argument("--epochs", type=int, default=30, help="Epochs for DL models")
+    parser.add_argument("--epochs", type=int, default=100, help="Epochs for DL models (early stopping typically fires at 20-60)")
     parser.add_argument("--seasonal-periods", type=int, default=24,
                         help="Seasonal period for Holt-Winters (24=hourly day, 96=15-min day)")
     parser.add_argument("--horizon", type=int, default=24, help="Forecast horizon (steps)")
@@ -188,6 +188,23 @@ def main():
     elif args.model == "lstm":
         model.fit(y_train, y_val=y_val)
 
+    elif args.model == "tft":
+        # TFT: load multivariate covariates (load columns) as past_covariates.
+        # This gives TFT access to the 6 electrical load signals that drive OT,
+        # addressing the underfitting seen with univariate-only input.
+        train_mv, val_mv, _ = loader.get_splits(
+            mode="multivariate", add_time_features=False, add_lag_features=False
+        )
+        load_cols = [c for c in train_mv.columns if c not in ("date", "OT")]
+        model.fit(
+            y_train,
+            dates_train=pd.DatetimeIndex(train_df["date"].values),
+            y_val=y_val,
+            dates_val=pd.DatetimeIndex(val_df["date"].values),
+            past_cov_arr=train_mv[load_cols].values,
+            past_cov_dates=pd.DatetimeIndex(train_mv["date"].values),
+            past_cov_val_arr=val_mv[load_cols].values,
+        )
     else:
         # Darts models require DatetimeIndex
         model.fit(
@@ -217,9 +234,30 @@ def main():
         # Darts models: predict full test length (autoregressive internally)
         y_pred = model.predict(len(y_test))
 
-    # Evaluate
+    # Evaluate on test set
     metrics = compute_all_metrics(y_test, y_pred, y_train=y_train)
     logger.info(f"Test metrics: {metrics}")
+
+    # Compute in-sample train predictions for overfitting diagnosis
+    train_metrics = {}
+    try:
+        if args.model in ML_MODELS:
+            y_pred_train = model.predict(X_train)
+            train_metrics = compute_all_metrics(y_train, y_pred_train, y_train=y_train)
+            logger.info(f"Train metrics: {train_metrics}")
+        elif args.model == "lstm":
+            context_tr = y_train.copy()
+            preds_tr = []
+            h = model.horizon
+            for i in range(0, len(y_train) - model.input_len - h + 1, h):
+                chunk = model.predict(context_tr[:model.input_len + i])
+                preds_tr.extend(chunk.tolist())
+            if preds_tr:
+                y_tr_aligned = y_train[model.input_len: model.input_len + len(preds_tr)]
+                train_metrics = compute_all_metrics(y_tr_aligned, np.array(preds_tr[:len(y_tr_aligned)]), y_train=y_train)
+                logger.info(f"Train metrics (rolling): {train_metrics}")
+    except Exception as e:
+        logger.warning(f"Could not compute train metrics: {e}")
 
     # Save results for dashboard first — before potentially slow checkpoint I/O
     out = save_results(
@@ -230,6 +268,7 @@ def main():
             "tuned": args.tune and args.model in TUNABLE,
             "horizon": args.horizon,
             "metrics": metrics,
+            "train_metrics": train_metrics,
             "y_true": y_test.tolist(),
             "y_pred": y_pred.tolist(),
         },

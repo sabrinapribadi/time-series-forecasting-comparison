@@ -1,0 +1,27 @@
+{
+  "model": "lightgbm",
+  "variant": "h1",
+  "n_features": 9,
+  "feature_names": [
+    "feature_0",
+    "feature_1",
+    "feature_2",
+    "feature_3",
+    "feature_4",
+    "feature_5",
+    "feature_6",
+    "feature_7",
+    "feature_8"
+  ],
+  "importances": [
+    1289.0,
+    1546.0,
+    813.0,
+    463.0,
+    685.0,
+    570.0,
+    3529.0,
+    2883.0,
+    3222.0
+  ]
+}
