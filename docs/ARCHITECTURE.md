@@ -52,11 +52,11 @@ Core data module. `ETTVariant` enum (H1/H2/M1/M2) + `ETTLoader` class.
 | `get_splits(mode, add_time_features, add_lag_features, add_rolling_features)` | Returns `(train_df, val_df, test_df)` with 70/10/20 chronological split |
 | `_add_time_features(df)` | Adds `hour_sin/cos`, `dow_sin/cos`, `month_sin/cos` (cyclical, ADR-002) |
 | `_add_lag_features(df, lag_steps)` | Adds `OT_lag_N` columns (ML oracle inputs, ADR-005) |
-| `_add_rolling_features(df)` | Adds `OT_rolling_mean_3`, `OT_rolling_std_3`, `OT_growth_rate`, `OT_trend_3` — all shifted by 1 (IOH AOP2026 pattern) |
+| `_add_rolling_features(df)` | Adds `OT_rolling_mean_3`, `OT_rolling_std_3`, `OT_growth_rate`, `OT_trend_3` — all shifted by 1 to prevent leakage |
 
 **Mode behaviour:**
 - `univariate` — drops LOAD_COLS (`HUFL, HULL, MUFL, MULL, LUFL, LULL`) from returned DataFrames; model sees only OT history + time/lag features
-- `multivariate` — keeps all 6 load columns; ML models use them as additional covariates (mirrors `Volume_WD_GB` chained regressor from IOH congestion pipeline)
+- `multivariate` — keeps all 6 load columns; ML models use them as additional covariates alongside the OT target
 
 ---
 
@@ -80,7 +80,7 @@ All models: `fit(X, y)` / `predict(X)`. Boosting models additionally accept `X_v
 |-------|---------|--------|-------|
 | `RandomForestModel` | sklearn | 10 trials, maximize R² | Default n_estimators=200 |
 | `XGBoostModel` | xgboost | 50 trials, maximize R² | Default n_estimators=300 |
-| `LightGBMModel` | lightgbm | Fixed params | IOH AOP2026: reg_alpha=0.1, reg_lambda=0.1, n_estimators=500 |
+| `LightGBMModel` | lightgbm | Fixed params | Fixed regularized defaults: reg_alpha=0.1, reg_lambda=0.1, n_estimators=500 |
 | `CatBoostModel` | catboost | 8 trials, maximize R² | Default iterations=300, l2_leaf_reg=3.0 |
 
 After Optuna, best params are refit on `concat([X_train, X_val])` for maximum data usage.
@@ -113,9 +113,9 @@ Key implementation details:
 | `compute_smape` | mean(\|y−ŷ\|/((|y|+\|ŷ\|)/2))×100 | [0, 200] | Symmetric |
 | `compute_mase` | MAE / mean\_abs\_diff(y_train) | [0, ∞) | <1 beats naive |
 | `compute_r2` | 1 − SS_res/SS_tot | (−∞, 1] | 1=perfect |
-| `compute_mda` | mean(sign(Δy)==sign(Δŷ))×100 | [0, 100] | IOH congestion |
-| `compute_bias` | mean(ŷ−y) | (−∞, ∞) | IOH congestion |
-| `compute_maape` | mean(arctan(\|y−ŷ\|/(|y|+ε)))×100 | [0, 45π/4] | IOH congestion |
+| `compute_mda` | mean(sign(Δy)==sign(Δŷ))×100 | [0, 100] | — |
+| `compute_bias` | mean(ŷ−y) | (−∞, ∞) | — |
+| `compute_maape` | mean(arctan(\|y−ŷ\|/(|y|+ε)))×100 | [0, 45π/4] | — |
 
 ---
 

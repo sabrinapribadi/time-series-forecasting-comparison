@@ -5,7 +5,7 @@ Each model exposes a minimal sklearn-style interface:
     fit(y_train, dates_train=None)
     predict(horizon, dates_future=None) -> np.ndarray
 
-Optional Optuna HPO for HoltWinters (from IOH AOP2026 pattern):
+Optional Optuna HPO for HoltWinters:
     tune_with_optuna(y_train, n_trials=15) — minimize RMSE on train-fit residuals
 """
 
@@ -58,7 +58,7 @@ class HoltWintersModel:
         self, y_train: np.ndarray, n_trials: int = 15
     ) -> "HoltWintersModel":
         """
-        Optuna HPO: 15 trials, minimize RMSE on train-fit residuals (IOH AOP2026 pattern).
+        Optuna HPO: 15 trials, minimize RMSE on train-fit residuals.
         Updates self.trend/seasonal/damped_trend and calls fit() with the best config.
         """
         import optuna
@@ -135,7 +135,7 @@ class ARIMAModel:
                 y_train,
                 seasonal=self.seasonal,
                 m=self.m,
-                test="adf",       # ADF stationarity test (from IOH congestion pipeline)
+                test="adf",
                 stepwise=True,
                 suppress_warnings=True,
                 **kwargs,

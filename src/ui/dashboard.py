@@ -14,6 +14,7 @@ Tabs:
 
 from __future__ import annotations
 
+import gc
 import json
 import math
 import os
@@ -204,7 +205,7 @@ MODEL_META: dict[str, dict] = {
         "label": "LightGBM",
         "family": "ML",
         "algorithm": "Histogram-based gradient boosting with leaf-wise growth",
-        "description": "Same gradient boosting objective as XGBoost but uses histogram binning, leaf-wise (best-first) tree growth, GOSS sampling, and EFB bundling for 10-100x speedup on large data. Uses IOH AOP2026 production params (reg_alpha=0.1, reg_lambda=0.1).",
+        "description": "Same gradient boosting objective as XGBoost but uses histogram binning, leaf-wise (best-first) tree growth, GOSS sampling, and EFB bundling for 10-100x speedup on large data. Fixed regularized defaults (reg_alpha=0.1, reg_lambda=0.1).",
         "strengths": "Fastest gradient boosting, memory efficient, strong regularisation, large datasets",
         "weaknesses": "Leaf-wise growth can overfit on small datasets; less interpretable than level-wise",
         "formula": "Histogram split: O(#bins) vs O(n log n); leaf-wise: expand leaf with max gain",
@@ -410,6 +411,7 @@ PLOTLY_TEMPLATE = go.layout.Template(
 
 @st.cache_data
 def load_results() -> dict:
+    """Load all model result metadata. y_true/y_pred arrays are excluded — use load_model_arrays()."""
     results = {}
     _skip_suffixes = ("_feature_importance", "_shap")
     for path in sorted(FORECAST_DIR.glob("*.json")):
@@ -419,8 +421,21 @@ def load_results() -> dict:
             data = json.load(f)
         key = path.stem
         model_key = data.get("model", key.split("_h")[0].split("_m")[0])
-        results[key] = {**data, "_model_key": model_key}
+        # Strip large arrays from the persistent cache; load on demand via load_model_arrays()
+        slim = {k: v for k, v in data.items() if k not in ("y_true", "y_pred")}
+        results[key] = {**slim, "_model_key": model_key}
     return results
+
+
+@st.cache_data
+def load_model_arrays(run_key: str) -> dict[str, list]:
+    """Load y_true and y_pred for one model from its JSON file on demand."""
+    path = FORECAST_DIR / f"{run_key}.json"
+    if not path.exists():
+        return {"y_true": [], "y_pred": []}
+    with open(path) as f:
+        data = json.load(f)
+    return {"y_true": data.get("y_true", []), "y_pred": data.get("y_pred", [])}
 
 
 @st.cache_data
@@ -430,6 +445,29 @@ def load_ett_data(variant: str = "h1") -> pd.DataFrame | None:
         return None
     df = pd.read_csv(path, parse_dates=["date"])
     return df.sort_values("date").reset_index(drop=True)
+
+
+@st.cache_data
+def _compute_acf_pacf(ot_tuple: tuple, max_lag: int = 72) -> tuple[list, list, float]:
+    """Compute ACF and PACF via Yule-Walker. Cached to avoid recomputing on every tab visit."""
+    from numpy.linalg import solve as _np_solve
+    ot = np.array(ot_tuple)
+    ot_c = ot - ot.mean()
+    acf_vals = [1.0]
+    for lag in range(1, max_lag + 1):
+        acf_vals.append(float(np.corrcoef(ot_c[lag:], ot_c[:-lag])[0, 1]))
+    _acf = np.array(acf_vals)
+    _phi = {1: [_acf[1]]}
+    for k in range(2, min(max_lag + 1, 49)):
+        R = np.array([[_acf[abs(i - j)] for j in range(k)] for i in range(k)])
+        try:
+            _phi[k] = _np_solve(R, _acf[1:k + 1]).tolist()
+        except Exception:
+            _phi[k] = [0.0] * k
+    pacf_vals = [1.0] + [_phi[k][-1] if k in _phi else 0.0 for k in range(1, min(max_lag + 1, 49))]
+    conf_bound = 1.96 / np.sqrt(len(ot))
+    gc.collect()
+    return acf_vals, pacf_vals, conf_bound
 
 
 def get_family(model_key: str) -> str:
@@ -553,7 +591,7 @@ with st.sidebar:
         n_steps = st.slider(
             "Forecast steps to display",
             min_value=48,
-            max_value=min(1000, len(results[list(results.keys())[0]].get("y_true", []))),
+            max_value=1000,
             value=240,
             step=24,
             help="Number of test-set steps shown in the Forecast Gallery. Shorter windows load faster.",
@@ -805,8 +843,8 @@ with tab2:
         st.stop()
 
     # Build overlay
-    first_data = results[selected_keys[0]]
-    y_true_full = first_data.get("y_true", [])
+    _first_arrays = load_model_arrays(selected_keys[0])
+    y_true_full = _first_arrays.get("y_true", [])
     total_steps = len(y_true_full)
     steps = min(n_steps, total_steps)
 
@@ -824,9 +862,10 @@ with tab2:
     # Model predictions
     for run_key in selected_keys:
         data = results[run_key]
-        if "y_pred" not in data:
+        _run_arrays = load_model_arrays(run_key)
+        if not _run_arrays.get("y_pred"):
             continue
-        y_pred = data["y_pred"][:steps]
+        y_pred = _run_arrays["y_pred"][:steps]
         model_key = data.get("_model_key", run_key)
         name = display_name(run_key, model_key)
         color = get_color(model_key)
@@ -962,9 +1001,10 @@ with tab3:
             st.caption("No train metrics — retrain to generate them.")
 
     with detail_col:
-        if "y_true" in sel_data and "y_pred" in sel_data:
-            y_true = np.array(sel_data["y_true"][:n_steps])
-            y_pred = np.array(sel_data["y_pred"][:n_steps])
+        _sel_arrays = load_model_arrays(sel_run_key)
+        if _sel_arrays.get("y_true") and _sel_arrays.get("y_pred"):
+            y_true = np.array(_sel_arrays["y_true"][:n_steps])
+            y_pred = np.array(_sel_arrays["y_pred"][:n_steps])
             residuals = y_true - y_pred
 
             # Chart 1 & 2 side-by-side — actual vs predicted + residuals
@@ -1655,32 +1695,7 @@ with tab5:
             unsafe_allow_html=True,
         )
 
-        max_lag_acf = 72
-        acf_vals = [1.0]
-        pacf_vals = [1.0]
-        ot_centered = ot_series - ot_series.mean()
-        var0 = float(np.var(ot_centered))
-
-        for lag in range(1, max_lag_acf + 1):
-            r = float(np.corrcoef(ot_centered[lag:], ot_centered[:-lag])[0, 1])
-            acf_vals.append(r)
-
-        # PACF via Yule-Walker (iterative)
-        from numpy.linalg import solve as _np_solve
-        _acf_arr = np.array(acf_vals)
-        _phi = {}
-        _phi[1] = [_acf_arr[1]]
-        for k in range(2, min(max_lag_acf + 1, 49)):
-            R = np.array([[_acf_arr[abs(i - j)] for j in range(k)] for i in range(k)])
-            r = _acf_arr[1:k + 1]
-            try:
-                sol = _np_solve(R, r)
-                _phi[k] = sol.tolist()
-            except Exception:
-                _phi[k] = [0.0] * k
-        pacf_vals = [1.0] + [_phi[k][-1] if k in _phi else 0.0 for k in range(1, min(max_lag_acf + 1, 49))]
-
-        conf_bound = 1.96 / np.sqrt(len(ot_series))
+        acf_vals, pacf_vals, conf_bound = _compute_acf_pacf(tuple(ot_series.tolist()))
         lags_ax = list(range(len(acf_vals)))
 
         fig_acf = make_subplots(rows=1, cols=2, subplot_titles=["ACF", "PACF"])
@@ -1861,7 +1876,7 @@ with tab5:
             p_val = 2 * (1 - _scipy_stats.norm.cdf(abs(dm_stat)))
             return float(dm_stat), float(p_val)
 
-        dm_models = [k for k in selected_keys if results[k].get("y_pred")]
+        dm_models = [k for k in selected_keys if load_model_arrays(k).get("y_pred")]
         if len(dm_models) < 2:
             st.info("Select at least 2 models in the sidebar to run DM tests.")
         else:
@@ -1873,8 +1888,10 @@ with tab5:
 
             key_a = dm_model_labels[model_a_label]
             key_b = dm_model_labels[model_b_label]
-            e1 = np.array(results[key_a]["y_true"]) - np.array(results[key_a]["y_pred"])
-            e2 = np.array(results[key_b]["y_true"]) - np.array(results[key_b]["y_pred"])
+            _arr_a = load_model_arrays(key_a)
+            _arr_b = load_model_arrays(key_b)
+            e1 = np.array(_arr_a["y_true"]) - np.array(_arr_a["y_pred"])
+            e2 = np.array(_arr_b["y_true"]) - np.array(_arr_b["y_pred"])
             min_len = min(len(e1), len(e2))
             dm_stat, dm_p = diebold_mariano(e1[:min_len], e2[:min_len])
             rmse_a = results[key_a].get("metrics", {}).get("RMSE", float("nan"))
@@ -1930,8 +1947,10 @@ with tab5:
                 for i, ki in enumerate(dm_models):
                     for j, kj in enumerate(dm_models):
                         if i != j:
-                            ei = np.array(results[ki]["y_true"]) - np.array(results[ki]["y_pred"])
-                            ej = np.array(results[kj]["y_true"]) - np.array(results[kj]["y_pred"])
+                            _ai = load_model_arrays(ki)
+                            _aj = load_model_arrays(kj)
+                            ei = np.array(_ai["y_true"]) - np.array(_ai["y_pred"])
+                            ej = np.array(_aj["y_true"]) - np.array(_aj["y_pred"])
                             mlen = min(len(ei), len(ej))
                             _, pv = diebold_mariano(ei[:mlen], ej[:mlen])
                             dm_matrix[i, j] = pv
@@ -2138,7 +2157,7 @@ with tab6:
                 "Cyclical time features — hour_sin/cos (period 24h), dow_sin/cos (7 days), "
                 "month_sin/cos (12 months). Cyclical encoding avoids discontinuity at period boundaries. "
                 "Lag features: OT_lag_1, OT_lag_2, OT_lag_24 (previous 1/2/24 hour OT values). "
-                "Rolling features (from IOH AOP2026 pipeline): OT_rolling_mean_3 (3-step rolling mean, "
+                "Rolling features: OT_rolling_mean_3 (3-step rolling mean, "
                 "shift 1), OT_rolling_std_3 (volatility), OT_growth_rate (pct_change), OT_trend_3 "
                 "(linear slope over last 3 steps). All rolling features shifted by 1 to prevent leakage. "
                 "Multivariate mode adds HUFL, HULL, MUFL, MULL, LUFL, LULL as ML covariates."

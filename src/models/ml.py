@@ -5,14 +5,14 @@ All models follow a tabular regression interface:
     fit(X_train, y_train)
     predict(X) -> np.ndarray
 
-Optional Optuna HPO (from IOH AOP2026 + congestion projects):
+Optional Optuna HPO:
     tune_with_optuna(X_train, y_train, X_val, y_val, n_trials)
 
-Trial counts per IOH production practice:
+Trial counts:
     RandomForest  — 10 trials, maximize R² on validation
     XGBoost       — 50 trials, maximize R² on validation
     CatBoost      —  8 trials, maximize R² on validation
-    LightGBM      — fixed params (no Optuna); uses IOH production hyperparameters
+    LightGBM      — fixed regularized defaults (no Optuna)
 
 Feature engineering (lag columns, cyclical time features) is handled upstream
 by ETTLoader.get_splits(add_lag_features=True).
@@ -66,7 +66,7 @@ class RandomForestModel:
         y_val: np.ndarray,
         n_trials: int = 10,
     ) -> "RandomForestModel":
-        """Optuna HPO: 10 trials, maximize R² on validation (IOH AOP2026 pattern)."""
+        """Optuna HPO: 10 trials, maximize R² on validation."""
         import optuna
         from sklearn.ensemble import RandomForestRegressor
         from src.evaluation.metrics import compute_r2
@@ -208,10 +208,10 @@ class XGBoostModel:
 
 class LightGBMModel:
     """
-    LightGBM regressor — uses IOH AOP2026 production hyperparameters (fixed, no Optuna).
+    LightGBM regressor — fixed regularized defaults, no Optuna.
 
-    IOH params: n_estimators=500, num_leaves=31, learning_rate=0.05,
-                reg_alpha=0.1, reg_lambda=0.1 (L1/L2 regularization from AOP2026).
+    Defaults: n_estimators=500, num_leaves=31, learning_rate=0.05,
+              reg_alpha=0.1, reg_lambda=0.1 (L1/L2 regularization).
     """
 
     def __init__(
@@ -306,7 +306,7 @@ class CatBoostModel:
         y_val: np.ndarray,
         n_trials: int = 8,
     ) -> "CatBoostModel":
-        """Optuna HPO: 8 trials, maximize R² on validation (IOH AOP2026 pattern)."""
+        """Optuna HPO: 8 trials, maximize R² on validation."""
         import optuna
         from catboost import CatBoostRegressor
         from src.evaluation.metrics import compute_r2

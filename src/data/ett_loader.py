@@ -8,7 +8,7 @@ Handles loading, splitting, and feature engineering for all four ETT variants:
 Two modes (ADR-001):
   univariate   — target OT from its own history + time features + optional lags
   multivariate — adds all 6 load columns (HUFL, HULL, MUFL, MULL, LUFL, LULL)
-                 as covariates; analogous to Volume_WD_GB regressor in IOH pipeline
+                 as covariates alongside the OT target
 
 Standard chronological split (per ADR-003):
   Train: 70% | Validation: 10% | Test: 20%
@@ -89,14 +89,13 @@ class ETTLoader:
         Args:
             mode:                 'univariate' — OT target only; drops raw load cols.
                                   'multivariate' — keeps HUFL/HULL/MUFL/MULL/LUFL/LULL
-                                  as covariates (mirrors Volume_WD_GB regressor from
-                                  IOH congestion pipeline).
+                                  as covariates alongside the OT target.
             add_time_features:    Cyclical sin/cos encodings for hour, day-of-week,
                                   month (ADR-002).
             add_lag_features:     Autoregressive lag columns for tree-based models
                                   (ADR-005). Only added for the target column.
             add_rolling_features: Rolling mean/std/trend/growth_rate features shifted
-                                  by 1 step (from AOP2026 feature engineering).
+                                  by 1 step to prevent leakage.
             lag_steps:            Which lags to compute. Defaults to [1, 2, 24] for
                                   hourly variants, [1, 4, 96] for 15-min variants.
         """
@@ -195,7 +194,7 @@ class ETTLoader:
 
     @staticmethod
     def _add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
-        """Rolling stats on OT, all shifted by 1 step to prevent leakage (from AOP2026)."""
+        """Rolling stats on OT, all shifted by 1 step to prevent leakage."""
         df = df.copy()
         ot = df[TARGET]
         df["OT_rolling_mean_3"] = ot.rolling(3).mean().shift(1)
