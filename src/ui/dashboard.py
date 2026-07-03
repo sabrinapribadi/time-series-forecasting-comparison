@@ -1872,8 +1872,8 @@ with tab5:
             if nw_var <= 0:
                 return 0.0, 1.0
             dm_stat = d_mean / np.sqrt(nw_var)
-            from scipy import stats as _scipy_stats
-            p_val = 2 * (1 - _scipy_stats.norm.cdf(abs(dm_stat)))
+            import math as _math
+            p_val = _math.erfc(abs(dm_stat) / _math.sqrt(2))
             return float(dm_stat), float(p_val)
 
         dm_models = [k for k in selected_keys if load_model_arrays(k).get("y_pred")]
