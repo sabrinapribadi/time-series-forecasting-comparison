@@ -626,13 +626,14 @@ sel_df = metrics_df.loc[metrics_df.index.isin(selected_keys)].copy()
 # Tab layout
 # ---------------------------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "Benchmark Results",
     "Forecast Gallery",
     "Model Inspector",
     "Data Explorer",
     "Statistical Tests",
     "Ask AI",
+    "RL Selector",
 ])
 
 # ===========================================================================
@@ -2324,3 +2325,399 @@ with tab6:
                 st.markdown(f"**`{c['id']}`** — tags: {', '.join(c['tags'][:6])}")
                 st.caption(c["text"][:400] + "..." if len(c["text"]) > 400 else c["text"])
                 st.divider()
+
+# ===========================================================================
+# TAB 7 — RL Selector (LinUCB contextual bandit)
+# ===========================================================================
+
+with tab7:
+    st.markdown("## RL Model Selector — LinUCB Contextual Bandit")
+    st.markdown(
+        '<div class="context-card">'
+        "A <strong>contextual bandit</strong> (LinUCB) learns which of the 11 forecasting models "
+        "to use for each 24-hour window based on observable features of the preceding window — "
+        "trend direction, volatility, autocorrelation, and more. "
+        "Training is fully offline: it replays all 145 test windows using the pre-computed "
+        "RMSE from every model as feedback, so no simulation or re-inference is needed."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("How LinUCB works", expanded=False):
+        st.markdown(
+            """
+Each model is an **arm**. At every 24-hour window the bandit:
+1. Extracts 7 features from the preceding window (level, volatility, trend, autocorrelation, max jump, range, skewness) plus a bias term.
+2. Computes a **UCB score** for each arm: `θ_a · x + α √(x⊤ A_a⁻¹ x)` — expected reward plus an exploration bonus that shrinks as the arm accumulates data.
+3. Selects the arm with the highest UCB score.
+4. Receives all 11 models' true RMSE as feedback (full-feedback offline update).
+
+**Reward**: normalised per window — 1.0 if this model had the lowest RMSE in this window, 0.0 if it had the highest, linearly interpolated in between.
+
+**Baselines**:
+- **Oracle**: always picks the best model for each window (unachievable in practice).
+- **Static best**: always picks Random Forest (best average RMSE across all windows).
+- **Random**: uniformly random arm selection every window.
+"""
+        )
+
+    # -----------------------------------------------------------------------
+    # Alpha slider + cached training
+    # -----------------------------------------------------------------------
+
+    rl_alpha = st.slider(
+        "Exploration factor α (higher = more exploration in early windows)",
+        min_value=0.1,
+        max_value=3.0,
+        value=0.5,
+        step=0.1,
+        help="Controls the UCB exploration bonus. α=0 → pure exploitation; α=3.0 → heavy exploration.",
+    )
+
+    @st.cache_data(show_spinner="Training LinUCB bandit…")
+    def _run_bandit(forecast_dir: str, alpha: float) -> dict:
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(PROJECT_ROOT))
+            from src.rl.model_selector import BanditModelSelector as _BMS
+            _sel = _BMS(forecast_dir, alpha=alpha)
+            _sel.train()
+            return _sel.get_results()
+        except Exception as _e:
+            return {"error": str(_e)}
+
+    rl = _run_bandit(str(FORECAST_DIR), rl_alpha)
+
+    if "error" in rl:
+        st.error(f"Bandit training failed: {rl['error']}")
+        st.stop()
+
+    arm_names = rl["arm_names"]
+    n_arms = len(arm_names)
+    n_win = rl["n_windows"]
+
+    # -----------------------------------------------------------------------
+    # KPI row
+    # -----------------------------------------------------------------------
+    st.divider()
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.metric(
+            "Oracle avg RMSE",
+            f"{rl['oracle_avg_rmse']:.4f} °C",
+            help="Best possible — always picks the lowest-RMSE model per window.",
+        )
+    with k2:
+        st.metric(
+            "Bandit avg RMSE",
+            f"{rl['bandit_avg_rmse']:.4f} °C",
+            delta=f"{rl['bandit_avg_rmse'] - rl['oracle_avg_rmse']:+.4f} vs oracle",
+            delta_color="inverse",
+        )
+    with k3:
+        st.metric(
+            f"Static best ({MODEL_DISPLAY.get(rl['static_best_name'], rl['static_best_name'])})",
+            f"{rl['static_best_avg_rmse']:.4f} °C",
+            delta=f"{rl['static_best_avg_rmse'] - rl['oracle_avg_rmse']:+.4f} vs oracle",
+            delta_color="inverse",
+        )
+    with k4:
+        improvement_pct = 100 * (rl["random_avg_rmse"] - rl["bandit_avg_rmse"]) / rl["random_avg_rmse"]
+        st.metric(
+            "Bandit improvement vs random",
+            f"{improvement_pct:.1f}%",
+            help=f"Random baseline avg RMSE: {rl['random_avg_rmse']:.4f} °C",
+        )
+
+    st.divider()
+
+    # -----------------------------------------------------------------------
+    # Section 1: Cumulative Regret  +  Arm Selection Distribution
+    # -----------------------------------------------------------------------
+    col_regret, col_pie = st.columns([PHI, 1])
+
+    with col_regret:
+        st.markdown("#### Cumulative Regret vs Oracle")
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem;">'
+            "Regret = how much RMSE was wasted by not always picking the oracle best model. "
+            "Lower is better. The bandit rapidly eliminates statistical and deep-learning models "
+            "that consistently underperform, slashing regret vs the random baseline."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        windows = list(range(1, n_win + 1))
+        fig_reg = go.Figure()
+        fig_reg.add_trace(go.Scatter(
+            x=windows, y=rl["regret_bandit"],
+            mode="lines", name="LinUCB Bandit",
+            line=dict(color="#4C8BF5", width=2),
+        ))
+        fig_reg.add_trace(go.Scatter(
+            x=windows, y=rl["regret_static"],
+            mode="lines", name=f"Static Best ({MODEL_DISPLAY.get(rl['static_best_name'], rl['static_best_name'])})",
+            line=dict(color="#56D364", width=2, dash="dot"),
+        ))
+        fig_reg.add_trace(go.Scatter(
+            x=windows, y=rl["regret_random"],
+            mode="lines", name="Random Baseline",
+            line=dict(color="#FF6B6B", width=2, dash="dash"),
+        ))
+        fig_reg.update_layout(
+            xaxis_title="Window (24-hour step)",
+            yaxis_title="Cumulative RMSE regret (°C)",
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=320,
+        )
+        st.plotly_chart(fig_reg, use_container_width=True)
+
+    with col_pie:
+        st.markdown("#### Arm Selection Distribution")
+        st.markdown(
+            '<div class="context-card" style="font-size:0.82rem;">'
+            "Which model the bandit selected across all 145 windows."
+            "</div>",
+            unsafe_allow_html=True,
+        )
+        counts = rl["arm_selection_counts"]
+        pie_labels = [MODEL_DISPLAY.get(a, a) for a in arm_names]
+        pie_colors = [FAMILY_COLORS.get(FAMILY_MAP.get(a, "ML"), "#888") for a in arm_names]
+        fig_pie = go.Figure(go.Pie(
+            labels=pie_labels,
+            values=counts,
+            marker=dict(colors=pie_colors),
+            textinfo="label+percent",
+            hovertemplate="%{label}: %{value} windows (%{percent})<extra></extra>",
+        ))
+        fig_pie.update_layout(
+            template="plotly_dark",
+            paper_bgcolor="rgba(0,0,0,0)",
+            showlegend=False,
+            margin=dict(l=0, r=0, t=10, b=0),
+            height=320,
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    # -----------------------------------------------------------------------
+    # Section 2: Per-window RMSE comparison
+    # -----------------------------------------------------------------------
+    st.markdown("#### Per-Window RMSE — Bandit vs Baselines")
+    st.markdown(
+        '<div class="context-card" style="font-size:0.82rem;">'
+        "RMSE of the selected model for each of the 145 24-hour windows. "
+        "Oracle always picks the per-window winner. "
+        "The bandit closely tracks oracle after the first ~20 exploration windows. "
+        "Statistical models (arima, holt_winters) selected in early exploration "
+        "cause the visible spikes."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    fig_win = go.Figure()
+    fig_win.add_trace(go.Scatter(
+        x=windows, y=rl["per_window_oracle_rmse"],
+        mode="lines", name="Oracle (best per window)",
+        line=dict(color="#56D364", width=1.5, dash="dot"),
+        opacity=0.85,
+    ))
+    fig_win.add_trace(go.Scatter(
+        x=windows, y=rl["per_window_bandit_rmse"],
+        mode="lines", name="LinUCB Bandit",
+        line=dict(color="#4C8BF5", width=2),
+    ))
+    fig_win.add_trace(go.Scatter(
+        x=windows, y=rl["per_window_static_rmse"],
+        mode="lines", name=f"Static Best ({MODEL_DISPLAY.get(rl['static_best_name'], rl['static_best_name'])})",
+        line=dict(color="#F5A623", width=1.5, dash="dash"),
+        opacity=0.75,
+    ))
+    fig_win.update_layout(
+        xaxis_title="Window index",
+        yaxis_title="RMSE (°C)",
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=300,
+    )
+    st.plotly_chart(fig_win, use_container_width=True)
+
+    # -----------------------------------------------------------------------
+    # Section 3: Selection history scatter
+    # -----------------------------------------------------------------------
+    st.markdown("#### Model Selection History")
+    st.markdown(
+        '<div class="context-card" style="font-size:0.82rem;">'
+        "Which arm was chosen at each window. "
+        "Statistical models appear only in the first few exploration windows; "
+        "the bandit quickly converges to the ML family."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    sel_hist = rl["per_window_selections"]
+    sel_labels = [MODEL_DISPLAY.get(arm_names[i], arm_names[i]) for i in sel_hist]
+    sel_families = [FAMILY_MAP.get(arm_names[i], "ML") for i in sel_hist]
+    sel_colors_list = [FAMILY_COLORS.get(f, "#888") for f in sel_families]
+
+    fig_hist = go.Figure(go.Scatter(
+        x=windows,
+        y=sel_labels,
+        mode="markers",
+        marker=dict(color=sel_colors_list, size=8, symbol="circle"),
+        hovertemplate="Window %{x}: %{y}<extra></extra>",
+    ))
+    fig_hist.update_layout(
+        xaxis_title="Window index",
+        yaxis=dict(categoryorder="array", categoryarray=[
+            MODEL_DISPLAY.get(a, a) for a in arm_names
+        ]),
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=320,
+    )
+    # Add family-colour legend manually
+    for fam, fcolor in FAMILY_COLORS.items():
+        fig_hist.add_trace(go.Scatter(
+            x=[None], y=[None], mode="markers",
+            marker=dict(color=fcolor, size=10),
+            name=fam, showlegend=True,
+        ))
+    fig_hist.update_layout(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+    # -----------------------------------------------------------------------
+    # Section 4: Per-arm summary table
+    # -----------------------------------------------------------------------
+    st.markdown("#### Arm Summary")
+    arm_avg_rmses = rl["arm_avg_rmses"]
+    arm_rows = []
+    for i, arm in enumerate(arm_names):
+        arm_rows.append({
+            "Model": MODEL_DISPLAY.get(arm, arm),
+            "Family": FAMILY_MAP.get(arm, "—"),
+            "Times Selected": int(counts[i]),
+            "Selection %": f"{100 * counts[i] / n_win:.1f}%",
+            "Avg RMSE (all windows)": f"{arm_avg_rmses[i]:.4f} °C",
+        })
+    arm_df = pd.DataFrame(arm_rows).sort_values("Times Selected", ascending=False)
+    st.dataframe(arm_df, use_container_width=True, hide_index=True)
+
+    # -----------------------------------------------------------------------
+    # Section 5: What-If Predictor
+    # -----------------------------------------------------------------------
+    st.divider()
+    st.markdown("### What-If Predictor")
+    st.markdown(
+        '<div class="context-card">'
+        "Set the characteristics of a hypothetical time-series window. "
+        "The bandit's learned linear model scores each arm and recommends "
+        "the model most likely to have the lowest RMSE under those conditions."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    feat_min = rl["feat_min"]
+    feat_max = rl["feat_max"]
+    feat_mean = rl["feat_mean"]
+
+    wif_col1, wif_col2 = st.columns(2)
+    with wif_col1:
+        wif_vol = st.slider(
+            "Volatility (local std / global std)",
+            min_value=float(feat_min[1]),
+            max_value=float(feat_max[1]),
+            value=float(feat_mean[1]),
+            step=0.01,
+            help="How much the series fluctuates in this window relative to the global scale.",
+        )
+        wif_trend = st.slider(
+            "Trend (slope per step / global std)",
+            min_value=float(feat_min[2]),
+            max_value=float(feat_max[2]),
+            value=float(feat_mean[2]),
+            step=0.005,
+            format="%.3f",
+            help="Positive = series is rising, negative = falling, 0 = flat.",
+        )
+    with wif_col2:
+        wif_autocorr = st.slider(
+            "Autocorrelation (lag-1 Pearson r)",
+            min_value=float(feat_min[3]),
+            max_value=float(feat_max[3]),
+            value=float(feat_mean[3]),
+            step=0.01,
+            help="How strongly each hour predicts the next. High = smooth/persistent.",
+        )
+        wif_skew = st.slider(
+            "Skewness",
+            min_value=float(feat_min[6]),
+            max_value=float(feat_max[6]),
+            value=float(feat_mean[6]),
+            step=0.1,
+            format="%.1f",
+            help="Positive = right-tailed (rare large spikes up), negative = left-tailed.",
+        )
+
+    # Build synthetic context vector from sliders; derive other features proportionally
+    wif_context = np.array([
+        feat_mean[0],                      # level — neutral
+        wif_vol,                           # volatility
+        wif_trend,                         # trend
+        wif_autocorr,                      # autocorr
+        wif_vol * (feat_mean[4] / (feat_mean[1] + 1e-8)),   # max_jump proportional
+        wif_vol * (feat_mean[5] / (feat_mean[1] + 1e-8)),   # range_ratio proportional
+        wif_skew,                          # skewness
+        1.0,                               # bias
+    ], dtype=np.float32)
+
+    # Score each arm using learned theta weights (no UCB bonus — pure exploitation estimate)
+    weights = np.array(rl["weights"], dtype=np.float64)   # (n_arms, n_features)
+    wif_scores = (weights @ wif_context.astype(np.float64)).tolist()
+    best_arm_idx = int(np.argmax(wif_scores))
+    best_arm_name = arm_names[best_arm_idx]
+    best_family = FAMILY_MAP.get(best_arm_name, "ML")
+    best_color = FAMILY_COLORS.get(best_family, "#888")
+
+    st.markdown(
+        f'<div class="context-card" style="border-left:4px solid {best_color}; font-size:1.05rem;">'
+        f"<strong>Recommended model:</strong> "
+        f"<span style='color:{best_color}; font-size:1.2rem; font-weight:700'>"
+        f"{MODEL_DISPLAY.get(best_arm_name, best_arm_name)}</span> "
+        f"<span style='font-size:0.85rem; color:#aaa'>({best_family})</span>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    # Horizontal bar chart of scores
+    score_labels = [MODEL_DISPLAY.get(a, a) for a in arm_names]
+    score_colors = [FAMILY_COLORS.get(FAMILY_MAP.get(a, "ML"), "#888") for a in arm_names]
+    sorted_idx = sorted(range(n_arms), key=lambda i: wif_scores[i])
+    fig_wif = go.Figure(go.Bar(
+        x=[wif_scores[i] for i in sorted_idx],
+        y=[score_labels[i] for i in sorted_idx],
+        orientation="h",
+        marker_color=[score_colors[i] for i in sorted_idx],
+        hovertemplate="%{y}: score %{x:.4f}<extra></extra>",
+    ))
+    fig_wif.update_layout(
+        xaxis_title="Expected reward score (higher = predicted lower RMSE)",
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=0, r=0, t=10, b=0),
+        height=320,
+    )
+    st.plotly_chart(fig_wif, use_container_width=True)
+
+    st.caption(
+        "Scores are linear expected-reward estimates from the learned LinUCB weights "
+        f"(α = {rl_alpha}). The bandit was trained on {n_win} × 24-hour windows "
+        f"({n_arms} arms). Reliable within the observed feature ranges; "
+        "extrapolation beyond those ranges is not guaranteed."
+    )
