@@ -8,7 +8,7 @@
 
 ## Why This Project
 
-Practitioners choosing a forecasting model face a confusing landscape: statistical methods are fast and interpretable, ML models handle non-linearity well, and deep learning models promise the highest accuracy — but come with steep compute costs. This project runs all three families side-by-side on the same dataset under the same evaluation protocol, so the accuracy/complexity trade-offs are visible and reproducible.
+Practitioners choosing a forecasting model face a confusing landscape: statistical methods are fast and interpretable, ML models handle non-linearity well, and deep learning models promise the highest accuracy — but come with steep compute costs. This project runs all three families side-by-side on the same dataset under the same evaluation protocol, so the accuracy/complexity trade-offs are visible and reproducible. It also includes a **LinUCB contextual bandit** that learns which model to use per 24-hour window from offline historical data — turning the static benchmark into an adaptive model selection policy.
 
 ## Dashboard Preview
 
@@ -46,8 +46,10 @@ flowchart LR
     C --> D["src/models/\nstatistical.py · ml.py · deep_learning.py"]
     D --> E["src/evaluation/metrics.py\nRMSE MAE MAPE SMAPE R² MASE MDA Bias"]
     E --> F["data/forecasts/ETT/*.json\n(pre-computed — committed)"]
-    F --> G["Streamlit Dashboard\nsrc/ui/dashboard.py\nBenchmark · Gallery · Inspector · Explorer · Ask AI"]
+    F --> G["Streamlit Dashboard\nsrc/ui/dashboard.py\nBenchmark · Gallery · Inspector · Explorer · Stats · Ask AI · RL Selector"]
     G --> H["OpenAI GPT-4o mini\nRAG retrieval + AI Explainability"]
+    F --> I["src/rl/\nLinUCB Bandit\n11 arms · 145 windows\n8 context features"]
+    I --> G
 ```
 
 ## Models and Algorithms
@@ -335,8 +337,12 @@ time-series-forecasting-comparison/
 │   │   └── deep_learning.py       # LSTM (PyTorch), Transformer/N-BEATS/TFT (Darts)
 │   ├── evaluation/
 │   │   └── metrics.py             # RMSE, MAE, MAPE, SMAPE, MASE, R², MDA, Bias, MAAPE
+│   ├── rl/
+│   │   ├── bandit.py              # LinUCBBandit — UCB score, per-arm A/b update
+│   │   ├── window_features.py     # extract_window_features — 8 features from lookback
+│   │   └── model_selector.py      # BanditModelSelector — offline training + results dict
 │   ├── ui/
-│   │   └── dashboard.py           # Streamlit 3-tab dashboard (reads JSON only)
+│   │   └── dashboard.py           # Streamlit 7-tab dashboard (reads JSON only)
 │   └── utils.py                   # setup_logging, load_config, save_results
 ├── scripts/
 │   ├── download_data.py           # Download ETT CSVs from GitHub
@@ -401,7 +407,7 @@ make train-multivariate
 make train-tuned
 ```
 
-## Dashboard (v2)
+## Dashboard (v3)
 
 Pre-computed JSON results in `data/forecasts/ETT/` power the dashboard — no model weights or retraining needed:
 
@@ -421,6 +427,7 @@ Dashboard opens at `http://localhost:8502`.
 | **Data Explorer** | ETT raw signal (all 7 columns), summary statistics, Pearson correlation heatmap |
 | **Statistical Tests** | Stationarity (ADF+KPSS), ACF/PACF, Granger Causality, Diebold-Mariano — each with contextual interpretation cards |
 | **Ask AI (RAG)** | GPT-4o mini assistant with keyword-retrieval over benchmark data and model metadata; quick-question buttons auto-send |
+| **RL Selector** | **LinUCB contextual bandit** trained offline on 145 × 24-hour windows; cumulative regret chart (bandit vs static best vs random, 80% improvement); arm selection pie; per-window RMSE comparison; selection history scatter; arm summary table; **What-If Predictor** (volatility/trend/autocorr/skewness sliders → model recommendation + UCB score bar chart) |
 
 ### AI Explainability
 
@@ -457,7 +464,8 @@ Main file: src/ui/dashboard.py
 | ML models | scikit-learn, xgboost, lightgbm, catboost |
 | Deep learning | PyTorch 2.x (LSTM), Darts 0.27 (Transformer, N-BEATS, TFT) |
 | HPO | Optuna 3.x |
-| Data | NumPy, Pandas |
+| RL / Bandit | NumPy + SciPy (LinUCB — no external RL library needed) |
+| Data | NumPy, Pandas, SciPy |
 | Frontend | Streamlit 1.35+, Plotly |
 | AI / LLM | OpenAI API (GPT-4o mini) — RAG + explainability |
 | Metrics | scikit-learn, NumPy |
