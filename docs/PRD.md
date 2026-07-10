@@ -1,9 +1,9 @@
 PRODUCT REQUIREMENTS DOCUMENT (PRD)
 Project: Time Series Forecasting Model Comparison
-Version: 6.0 (Overfitting/Underfitting Remediation + DL Capacity Increases)
+Version: 7.0 (RL Model Selector — LinUCB Contextual Bandit)
 Author: Sabrina Pribadi
-Date: July 3, 2026
-Status: Active — All 11 models retrained with remediated hyperparameters; full benchmark updated
+Date: July 10, 2026
+Status: Active — LinUCB bandit trained offline on 145 test windows; 7-tab dashboard live
 
 
 1. EXECUTIVE SUMMARY
@@ -15,8 +15,9 @@ defaults to convention ("ARIMA for time series", "XGBoost always wins") rather t
 
 Solution: A reproducible end-to-end pipeline that trains 11 models across 3 families (statistical,
 ML, deep learning) on the ETT (Electricity Transformer Temperature) dataset, evaluates each on
-9 metrics, and publishes results to a Streamlit dashboard. Incorporates univariate and multivariate
-modes, rolling statistical features, and Optuna hyperparameter tuning.
+9 metrics, and publishes results to a 7-tab Streamlit dashboard. Incorporates univariate and
+multivariate modes, rolling statistical features, Optuna hyperparameter tuning, and a LinUCB
+contextual bandit that learns which model to select per 24-hour window from offline feedback.
 
 Value Proposition: Three things at once — a rigorous academic benchmark (ETT, standard 70/10/20
 split, RMSE/MAE/MAPE/SMAPE/MASE/R²/MDA/Bias/MAAPE evaluation), a practical HPO framework
@@ -100,6 +101,52 @@ This project was built to demonstrate capabilities across:
     - Diebold-Mariano: per-comparison guidance (significant → choose best; not significant → 
       choose simpler); matrix summary with count of equivalent pairs and 3 next steps
 
+17. RL Model Selector — LinUCB Contextual Bandit (v7):
+    A new src/rl/ module converts the static benchmark into a data-driven model selection
+    policy using a contextual bandit (LinUCB, Li et al. 2010).
+
+    Problem formulation: 145 non-overlapping 24-hour windows from the ETTh1 test set become
+    bandit steps. At each step, the agent observes 8 context features extracted from the
+    preceding 24-hour lookback window and selects one of 11 forecasting arms.
+    Reward = normalised per-window score: 1.0 = lowest RMSE arm, 0.0 = highest RMSE arm.
+
+    Context features (src/rl/window_features.py, 8 features):
+      level       — normalised mean (series level relative to global scale)
+      volatility  — normalised std (local spread)
+      trend       — linear slope / scale (rising vs. falling regime)
+      autocorr    — lag-1 Pearson correlation (persistence / AR structure)
+      max_jump    — max single-step |diff| / scale (shock presence)
+      range_ratio — (max − min) / scale (local range width)
+      skewness    — distributional skew (tail asymmetry)
+      bias        — always 1.0 (LinUCB intercept)
+
+    Algorithm (src/rl/bandit.py — LinUCBBandit):
+      Each arm a maintains A_a (d×d feature covariance, ridge-regularised with I) and b_a (reward
+      accumulator). UCB score: θ_a^T x + α √(x^T A_a^{-1} x), where θ_a = A_a^{-1} b_a.
+      Full-feedback offline updates: all 11 arms updated at every window since pre-computed
+      forecasts provide each arm's true reward — no simulator or re-inference needed.
+      Sequential rolling evaluation: at window w, arm selected BEFORE updating on window w.
+
+    Training (src/rl/model_selector.py — BanditModelSelector):
+      Alignment: univariate test sets have 3,485 points; multivariate have 3,480.
+      univariate[5:] == multivariate[:]. All arms aligned to the common 3,480-point window.
+      145 windows × 11 arms — bandit trains in < 1 second (pure numpy, no model weights).
+
+    Results (α = 0.5, default):
+      Oracle avg RMSE:      0.6084 (always picks per-window best — unachievable in practice)
+      Bandit avg RMSE:      0.6923 (learns which ML model to pick from context)
+      Static best RMSE:     0.6700 (always Random Forest)
+      Random baseline RMSE: 3.3876 (uniform arm selection — includes bad statistical arms)
+      Bandit vs random:     80% improvement in avg RMSE
+      Arm selection (145 windows): Random Forest 45.5%, CatBoost 38.6%, XGBoost 11.0%,
+        LightGBM 3.4%, ARIMA 0.7%, Holt-Winters 0.7% (two early exploration picks only)
+      Cumulative regret: Bandit 12.16 vs Static best 8.93 vs Random 402.98
+      The ~3.2 gap vs static best is the early-window exploration cost; both are far below random.
+
+    What-if predictor: Four sliders (volatility, trend, autocorr, skewness) produce a synthetic
+    feature vector; learned theta weights score each arm → recommended model + UCB score bar chart.
+    Dashboard caches results with @st.cache_data keyed by alpha; retraining < 1s on slider change.
+
 15. Dashboard UX Fixes (v5):
     - Ask AI quick questions: clicking a button now auto-sends immediately (sets chat_textarea
       directly in session state + _auto_send flag) instead of just populating the text box
@@ -168,12 +215,13 @@ In-Scope:
 - Feature Engineering: Cyclical time features, OT lags, rolling stats + trend
 - HPO: Optuna tuning for HoltWinters, RandomForest, XGBoost, CatBoost
 - Evaluation: 9 metrics (RMSE, MAE, MAPE, SMAPE, MASE, R², MDA, Bias, MAAPE)
-- Deployment: Pre-computed JSON + Streamlit 6-tab dashboard (v2)
+- Deployment: Pre-computed JSON + Streamlit 7-tab dashboard (v3)
 - AI Features: RAG Ask AI (GPT-4o mini + keyword retrieval) + AI Explainability (streaming bullets)
 - SHAP: Pre-computed SHAP beeswarm charts for all 4 ML models (scripts/extract_shap_values.py)
 - DL Retraining: All 4 DL models retrained with normalization + early stopping + LR scheduling
+- RL Module: LinUCB contextual bandit (src/rl/) — offline model selection from historical data
 - Bug Fixes: macOS threading fix for XGBoost/LightGBM; button key mismatch in Model Inspector
-- Documentation: 6 ADRs, PRD v4, ARCHITECTURE.md, README v3
+- Documentation: 6 ADRs, PRD v7, ARCHITECTURE.md, README
 
 Out-of-Scope (current version):
 - Multi-horizon probabilistic forecasting (quantile outputs from TFT not yet exposed)
@@ -181,6 +229,7 @@ Out-of-Scope (current version):
 - Real-time inference or streaming pipeline
 - GPU cloud training (local MPS/CPU only)
 - Production A/B testing infrastructure
+- Online bandit learning with true sequential feedback (current bandit is offline-only)
 
 
 4. USER PERSONAS AND STORIES
@@ -281,7 +330,25 @@ Module F: Training Script (scripts/train_model.py)
 - F.9 Post-retrain cleanup: scripts/retrain_cleanup.sh renames {model}_multivariate_{variant}.json
        to {model}_{variant}.json so SHAP/feature_importance lookups remain consistent with base names.
 
-Module G: Streamlit Dashboard v2 (src/ui/dashboard.py)
+Module H: RL Module (src/rl/)
+- H.1 bandit.py — LinUCBBandit: n_arms, n_features, alpha; A[a]=I, b[a]=0 initialisation;
+       update(arm, context, reward) → A[a] += outer(x,x), b[a] += r*x;
+       select_arm(context) → argmax(θ_a^T x + α √(x^T A_a^{-1} x)), scores;
+       get_weights() → [θ_a = A_a^{-1} b_a for each arm]
+- H.2 window_features.py — extract_window_features(window, scale) → float32 array (8,):
+       level (mean/scale), volatility (std/scale), trend (polyfit slope/scale),
+       autocorr (lag-1 Pearson), max_jump (max|diff|/scale), range_ratio (ptp/scale),
+       skewness (scipy.stats.skew), bias (1.0)
+- H.3 model_selector.py — BanditModelSelector(forecast_dir, alpha, window_size=24):
+       _load_forecasts(): loads 11 JSON files, aligns univariate (3485) to multivariate (3480)
+         by trimming offset=5 from start (univariate[5:] == multivariate[:])
+       train(): computes 145×11 RMSE matrix, normalises per-window to [0,1] reward matrix,
+         extracts context features from lookback windows, runs sequential offline LinUCB loop
+       get_results(): fully serialisable dict — KPI metrics, per-window arrays,
+         cumulative regret series, learned theta weights, feature statistics
+       predict_from_features(context): scores each arm by θ_a^T context (no UCB bonus)
+
+Module G: Streamlit Dashboard v3 (src/ui/dashboard.py)
 - G.1 Data source: reads data/forecasts/ETT/*.json only — no model weights at runtime
 - G.2 Design: golden ratio (φ=1.618) column splits; Inter + JetBrains Mono fonts;
        dark theme (#0D1117 / #161B22); family colours Statistical=#F5A623, ML=#4C8BF5, DL=#9B8FFF
@@ -306,7 +373,13 @@ Module G: Streamlit Dashboard v2 (src/ui/dashboard.py)
 - G.8 Tab 6 — Ask AI (RAG): keyword retrieval over knowledge base; GPT-4o mini response with
        cited source IDs; 6 quick-question buttons (clicking auto-sends immediately via
        st.session_state.chat_textarea + _auto_send flag); full chat history in session state
-- G.9 Sidebar: grouped expanders (Model Families, Individual Models, Display Options, Dataset Info)
+- G.9 Tab 7 — RL Selector: alpha slider (0.1–3.0); @st.cache_data _run_bandit(dir, alpha);
+       KPI row (oracle / bandit / static best / improvement vs random); cumulative regret line
+       chart (bandit vs static best vs random); arm selection pie chart; per-window RMSE line
+       chart (oracle vs bandit vs static best); selection history scatter (model vs window);
+       arm summary table (model / family / times selected / avg RMSE); what-if predictor
+       (4 sliders → synthetic context → linear score per arm → recommended model + bar chart)
+- G.10 Sidebar: grouped expanders (Model Families, Individual Models, Display Options, Dataset Info)
 
 
 6. NON-FUNCTIONAL REQUIREMENTS
@@ -441,6 +514,7 @@ Rolling features (all shifted by 1 to prevent leakage):
 | 8 | Full benchmark on ETTh1, results committed | Complete |
 | 9 | Full 100+ epoch DL run on GPU for fair comparison | Planned |
 | 10 | ETTh2/ETTm1/ETTm2 benchmark extension | Planned |
+| 11 | LinUCB bandit (src/rl/), RL Selector dashboard tab | Complete |
 
 
 10. TESTING STRATEGY
@@ -536,7 +610,9 @@ Regularization confirmed effective:
 - Live Dashboard: https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/
 - Dataset: github.com/zhouhaoyi/ETDataset (MIT License)
 - Tech Stack: statsmodels, pmdarima, prophet, sklearn, xgboost, lightgbm, catboost,
-  PyTorch, Darts, Optuna, Streamlit, Plotly, Pandas, NumPy, Poetry
+  PyTorch, Darts, Optuna, Streamlit, Plotly, Pandas, NumPy, SciPy, Poetry
+- RL Reference: Li et al. (2010). A Contextual-Bandit Approach to Personalized News Article
+  Recommendation. WWW 2010. https://arxiv.org/abs/1003.0146
 - ADR Index (see docs/adr/README.md for full index):
     ADR-001: Univariate first, multivariate Phase 2 (amended — multivariate now live)
     ADR-002: Cyclical encoding + lag features + rolling statistics
