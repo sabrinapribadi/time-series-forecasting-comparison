@@ -321,7 +321,8 @@ See [docs/adr/](docs/adr/README.md) for full decision log.
 | [ADR-003](docs/adr/ADR-003-validation-strategy.md) | Validation: Chronological 70/10/20 split | Accepted |
 | [ADR-004](docs/adr/ADR-004-model-selection.md) | Model selection: Compare all 11 + Optuna HPO | Accepted |
 | [ADR-005](docs/adr/ADR-005-feature-engineering.md) | Feature engineering: Oracle lag filling for ML models | Accepted |
-| [ADR-006](docs/adr/ADR-006-deployment.md) | Deployment: Pre-computed JSON → Streamlit dashboard | Accepted |
+| [ADR-006](docs/adr/ADR-006-deployment.md) | Deployment: Pre-computed JSON → Streamlit 7-tab dashboard | Accepted |
+| [ADR-007](docs/adr/ADR-007-rl-model-selector.md) | RL: LinUCB contextual bandit for offline adaptive model selection | Accepted |
 
 ## Project Structure
 

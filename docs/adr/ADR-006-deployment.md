@@ -71,13 +71,14 @@ JSON saved **before** joblib checkpoint in `scripts/train_model.py` — so resul
 
 Run name encoding: `{model}[_multivariate][_tuned]_{variant}.json` — allows univariate and multivariate results to coexist in the same directory.
 
-Dashboard (`src/ui/dashboard.py`) v3 reads `data/forecasts/ETT/*.json` at startup, builds a DataFrame of metrics, and renders **6 tabs**:
+Dashboard (`src/ui/dashboard.py`) v3 reads `data/forecasts/ETT/*.json` at startup, builds a DataFrame of metrics, and renders **7 tabs**:
 - **Benchmark Results**: KPI cards, ranked bar chart with per-metric formula cards, normalised radar chart, full metric table
 - **Forecast Gallery**: all models overlaid on OT test set, family colour-coded, zoomable with range slider
 - **Model Inspector**: Actual vs Predicted, residuals, histogram, scatter + **Overfitting Diagnostic** (Train vs Test RMSE gap with ratio-based verdict) + Feature Importance (MDI from JSON) + SHAP beeswarm (ML models) + **AI Explainability** (GPT-4o mini streaming bullets, Statistical/DL models)
 - **Data Explorer**: ETT raw signal (dual-panel time series + range slider), summary stats, Pearson heatmap
 - **Statistical Tests**: Stationarity (ADF+KPSS + contextual interpretation), ACF/PACF (with peak detection and model implications), Granger Causality (table + per-feature interpretation), Diebold-Mariano (pairwise test + actionable guidance + full p-value matrix with next-step summary)
 - **Ask AI (RAG)**: keyword retrieval over knowledge base → GPT-4o mini response with cited source IDs; 6 quick-question buttons that auto-send on click
+- **RL Selector**: LinUCB bandit (see ADR-007); cumulative regret chart; arm selection pie; per-window RMSE comparison; selection history scatter; what-if predictor (4 sliders → model recommendation + UCB score bar chart)
 
 **Overfitting Diagnostic (Model Inspector, v3):** Shows Train RMSE, Test RMSE, ratio, and verdict:
 - ratio < 1.2 → "Well-fitted" (green)
@@ -123,7 +124,7 @@ Dashboard (`src/ui/dashboard.py`) v3 reads `data/forecasts/ETT/*.json` at startu
 - `.gitignore`: includes `/models/` (checkpoints), excludes `data/forecasts/ETT/*.json` (committed); `.streamlit/secrets.toml` explicitly gitignored
 - `src/ui/dashboard.py`: `Path('data/forecasts/ETT').glob('*.json')` at startup; `st.stop()` with error if no files found
 - `.streamlit/config.toml`: dark theme (backgroundColor=#0D1117), Inter font, XSRF protection
-- `requirements-streamlit.txt`: minimal 5-dep file for Streamlit Cloud (numpy, pandas, plotly, streamlit, openai)
+- `requirements-streamlit.txt`: minimal 6-dep file for Streamlit Cloud (numpy, pandas, scipy, plotly, streamlit, openai); scipy added in v7 for `scipy.stats.skew` used by the RL window feature extractor
 - `pyproject.toml`: `openai>=2.44.0` added for local development
 
 ## Overfitting / Underfitting Remediation (v6)
