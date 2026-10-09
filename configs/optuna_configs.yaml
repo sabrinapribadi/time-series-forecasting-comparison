@@ -1,12 +1,12 @@
 # ============================================================
 # Optuna hyperparameter search spaces
 # ============================================================
-# Trial counts mirror production forecasting production practice:
+# Trial budgets per model (cheaper models get fewer trials):
 #   holt_winters  — 15 trials, minimize RMSE on train-fit residuals
 #   random_forest — 10 trials, maximize R² on validation
 #   catboost      —  8 trials, maximize R² on validation
 #   xgboost       — 50 trials, maximize R² on validation
-#   lightgbm      — fixed fixed regularised params, no Optuna
+#   lightgbm      — fixed regularised params, no Optuna
 #
 # Run via: python scripts/train_model.py --model <name> --tune
 
@@ -80,7 +80,7 @@ optuna:
       high: 10
 
   lightgbm:
-    # fixed regularised params — no Optuna tuning
+    # Fixed regularised params — no Optuna tuning
     fixed: true
     n_estimators: 500
     num_leaves: 31

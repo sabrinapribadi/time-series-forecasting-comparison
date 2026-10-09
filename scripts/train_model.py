@@ -12,14 +12,14 @@ Usage:
 Mode:
     univariate   (default) — model sees only OT history + time features + lags
     multivariate           — ML models also receive all 6 load columns as covariates
-                             (mirrors exogenous-load regressor from a chained-regressor pipeline)
+                             (chained-regressor setup: exogenous load signals as covariates)
 
---tune triggers Optuna HPO before fitting (production forecasting pattern):
+--tune triggers Optuna HPO before fitting (per-model trial budgets):
     holt_winters  — 15 trials, minimize RMSE on train-fit residuals
     random_forest — 10 trials, maximize R² on validation
     xgboost       — 50 trials, maximize R² on validation
     catboost      —  8 trials, maximize R² on validation
-    lightgbm      — fixed fixed regularised params (no Optuna)
+    lightgbm      — fixed regularised defaults (no Optuna)
 
 Available models:
     Statistical : holt_winters, arima, prophet
@@ -81,7 +81,7 @@ def build_model(name: str, args: argparse.Namespace):
         return XGBoostModel(n_estimators=300)
     elif name == "lightgbm":
         from src.models.ml import LightGBMModel
-        return LightGBMModel()   # uses fixed regularised params by default
+        return LightGBMModel()   # uses fixed regularised defaults
     elif name == "catboost":
         from src.models.ml import CatBoostModel
         return CatBoostModel(iterations=300)

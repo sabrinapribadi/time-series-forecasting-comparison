@@ -21,7 +21,7 @@ train-multivariate:
 		poetry run python scripts/train_model.py --model $$model --variant h1 --mode multivariate; \
 	done
 
-# Train tunable models with Optuna HPO (production forecasting trial counts)
+# Train tunable models with Optuna HPO (per-model trial budgets in configs/optuna_configs.yaml)
 train-tuned:
 	poetry run python scripts/train_model.py --model holt_winters --variant h1 --tune
 	poetry run python scripts/train_model.py --model random_forest --variant h1 --tune
