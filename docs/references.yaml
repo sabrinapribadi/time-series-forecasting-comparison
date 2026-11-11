@@ -1,0 +1,78 @@
+# Every paper or book cited in an ADR (rule R2). `python scripts/evidence.py` fetches venue, type and citations
+# from OpenAlex and writes data/outputs/references_evidence.json plus a table per ADR.
+- key: zhou_2021_informer
+  doi: 10.1609/aaai.v35i12.17325
+  used_in: [ADR-001, ADR-003, ADR-005]
+  role: ETT dataset and its 12/4/4-month split
+- key: hyndman_fpp3
+  title: "Forecasting: Principles and Practice"
+  venue: "OTexts (open textbook)"
+  kind: book
+  used_in: [ADR-002, ADR-003]
+  role: features and train/test practice for time series
+- key: akiba_2019_optuna
+  doi: 10.1145/3292500.3330701
+  used_in: [ADR-004]
+  role: hyperparameter search
+- key: hyndman_khandakar_2008
+  doi: 10.18637/jss.v027.i03
+  used_in: [ADR-004]
+  role: automatic ARIMA order selection
+- key: winters_1960
+  doi: 10.1287/mnsc.6.3.324
+  used_in: [ADR-004]
+  role: Holt-Winters seasonal smoothing
+- key: taylor_letham_2018
+  doi: 10.1080/00031305.2017.1380080
+  used_in: [ADR-004]
+  role: Prophet
+- key: breiman_2001
+  doi: 10.1023/A:1010933404324
+  used_in: [ADR-004]
+  role: random forest
+- key: chen_guestrin_2016
+  doi: 10.1145/2939672.2939785
+  used_in: [ADR-004]
+  role: XGBoost
+- key: ke_2017
+  title: "LightGBM: A Highly Efficient Gradient Boosting Decision Tree"
+  venue: "NeurIPS 2017 (OpenAlex primary copy is a mirror)"
+  peer_reviewed: true
+  used_in: [ADR-004]
+  role: LightGBM
+- key: prokhorenkova_2018
+  doi: 10.48550/arXiv.1706.09516
+  venue: "NeurIPS 2018 (OpenAlex primary copy is arXiv)"
+  peer_reviewed: true
+  used_in: [ADR-004]
+  role: CatBoost
+- key: hochreiter_1997
+  doi: 10.1162/neco.1997.9.8.1735
+  used_in: [ADR-004]
+  role: LSTM
+- key: oreshkin_2020
+  doi: 10.48550/arXiv.1905.10437
+  venue: "ICLR 2020 (OpenAlex primary copy is arXiv)"
+  peer_reviewed: true
+  used_in: [ADR-004]
+  role: N-BEATS
+- key: lim_2021_tft
+  doi: 10.1016/j.ijforecast.2021.03.012
+  used_in: [ADR-004]
+  role: Temporal Fusion Transformer
+- key: vaswani_2017
+  doi: 10.48550/arXiv.1706.03762
+  venue: "NeurIPS 2017 (OpenAlex primary copy is arXiv)"
+  peer_reviewed: true
+  used_in: [ADR-004]
+  role: Transformer
+- key: li_2010_linucb
+  doi: 10.1145/1772690.1772758
+  used_in: [ADR-007]
+  role: LinUCB contextual bandit
+- key: lattimore_2020
+  doi: 10.1017/9781108571401
+  kind: book
+  venue: "Cambridge University Press (book)"
+  used_in: [ADR-007]
+  role: bandit theory (chapter 19, LinUCB)
