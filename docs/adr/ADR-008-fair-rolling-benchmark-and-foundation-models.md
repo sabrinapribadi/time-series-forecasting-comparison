@@ -25,7 +25,7 @@
 ### 1. Rolling protocol
 
 - **Forecast starts (origins):** every 24 hours from the first test hour (row 13,936): 145 origins, each forecasting OT for the next 24 hours (3,480 hours).
-- **Validation origins:** the same scheme over the validation period (rows 12,194–13,935): 72 origins, used only to choose champions.
+- **Validation origins:** the same scheme over the validation period: 71 origins from row 12,218 (see corrections), used only to choose champions.
 - **History:** every model sees all OT values up to the origin, never after it. Foundation models use the last 2,048 hours.
 - **Trained models:** settings and training data as in ADR-004 (no new tuning).
   - ML: recursive. Each step's prediction becomes the next step's lag; calendar features are known in advance.
@@ -76,6 +76,16 @@
 
 - README, dashboard and pages lead with the rolling benchmark. The old table stays, labelled "oracle lags (ADR-005): not like-for-like".
 - The bandit (ADR-007) is rerun on rolling forecasts only under a new decision.
+
+## Corrections before any run (2026-11-11)
+
+Found while reading the training code; pushed before any forecast was made.
+
+- **Validation origins start at row 12,218 (71 origins), not 12,194 (72).** ML lag features drop the first 24 rows, so ML training ends at raw row 12,200. Starting later keeps every validation target out of every model's training rows.
+- **TFT runs only in the covariate track.** It was trained with the six load series and cannot forecast from OT alone. The univariate trained group has 10 models.
+- **ML uses the univariate checkpoints** (`random_forest_h1`, `xgboost_h1`, `lightgbm_h1`, `catboost_h1`). The headline multivariate variants need same-hour load values, which are unknown when forecasting ahead.
+- **Covariate track:** Chronos-2 (past covariates) and TFT. TimesFM-2.5 and Moirai-2.0 run univariate only.
+- **Known bias, stated:** deep and boosted models used the validation period for early stopping, so their validation scores are slightly optimistic. This affects only the choice within the trained group.
 
 ## Considered Options
 
