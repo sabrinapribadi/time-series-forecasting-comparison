@@ -2,6 +2,14 @@
 
 Newest first. Each entry uses STAR (Situation, Task, Action, Result) so it can be told as a story.
 
+## [7.1.0] — 2026-11-11 — CI on every push
+**Files:** tests/test_forecasts.py, .github/workflows/ci.yml; empty tests/test_models.py and tests/test_data_preprocessing.py removed
+- **Situation:** No CI; the two test files were empty.
+- **Task:** CI on every push (rule R19) that checks the committed forecasts the dashboard shows.
+- **Action:** Contract tests recompute RMSE from each model's stored predictions, check all 11 models exist, and check the README's RMSE table and ranking; error-level lint.
+- **Result:** 13 tests pass; stored and recomputed RMSE agree for all 11 models; random forest leads (0.7035).
+- **Talking point:** The benchmark table can no longer drift from the predictions behind it.
+
 ## [7.0.2] — 2026-10-12 — MIT license
 **Files:** LICENSE
 - **Situation:** The repository had an empty LICENSE file, so by default nobody else could legally reuse the code.
