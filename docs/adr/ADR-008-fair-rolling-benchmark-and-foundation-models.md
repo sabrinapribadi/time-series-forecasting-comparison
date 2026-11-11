@@ -87,6 +87,13 @@ Found while reading the training code; pushed before any forecast was made.
 - **Covariate track:** Chronos-2 (past covariates) and TFT. TimesFM-2.5 and Moirai-2.0 run univariate only.
 - **Known bias, stated:** deep and boosted models used the validation period for early stopping, so their validation scores are slightly optimistic. This affects only the choice within the trained group.
 
+## Deviation before any test score was read (2026-11-11, 17:20)
+
+- **Found during the runs:** the saved Transformer, N-BEATS and TFT checkpoints were untrained shells (Darts' network was lost when they were pickled), and the "univariate" Random Forest and CatBoost checkpoints were 15-feature models. All five were retrained with their ADR-004 settings on CPU.
+- **Dropped by decision:** the Transformer and TFT, after 2 hours of CPU retraining without finishing. N-BEATS (47 minutes), Random Forest and CatBoost finished and stay in.
+- **Effect:** the univariate trained group has 9 models; the covariate track has no trained comparator, so Chronos-2 with load inputs is reported against its own univariate score only.
+- **State when decided:** validation scores of the 15 finished models had been read (the champion step); no test score had been read by anyone.
+
 ## Considered Options
 
 | Option | Status | Why |
