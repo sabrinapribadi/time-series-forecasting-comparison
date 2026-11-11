@@ -1,6 +1,6 @@
 # ADR-008: Fair Rolling Benchmark and Zero-Shot Foundation Models
 
-**Status:** Accepted — written and pushed before any code, download or run for this decision
+**Status:** Accepted — written and pushed before any code, download or run for this decision; **result: the foundation model wins** (2026-11-11)
 **Date:** 2026-11-11
 **Deciders:** Sabrina Pribadi
 
@@ -87,12 +87,54 @@ Found while reading the training code; pushed before any forecast was made.
 - **Covariate track:** Chronos-2 (past covariates) and TFT. TimesFM-2.5 and Moirai-2.0 run univariate only.
 - **Known bias, stated:** deep and boosted models used the validation period for early stopping, so their validation scores are slightly optimistic. This affects only the choice within the trained group.
 
-## Deviation before any test score was read (2026-11-11, 17:20)
+## Deviation before any test score was read (2026-11-11, pushed 17:16, commit c844188)
 
 - **Found during the runs:** the saved Transformer, N-BEATS and TFT checkpoints were untrained shells (Darts' network was lost when they were pickled), and the "univariate" Random Forest and CatBoost checkpoints were 15-feature models. All five were retrained with their ADR-004 settings on CPU.
 - **Dropped by decision:** the Transformer and TFT, after 2 hours of CPU retraining without finishing. N-BEATS (47 minutes), Random Forest and CatBoost finished and stay in.
 - **Effect:** the univariate trained group has 9 models; the covariate track has no trained comparator, so Chronos-2 with load inputs is reported against its own univariate score only.
 - **State when decided:** validation scores of the 15 finished models had been read (the champion step); no test score had been read by anyone.
+
+## Empirical results (2026-11-11)
+
+Source: `data/forecasts/ETT/rolling/summary.json` (`scripts/rolling_report.py`). MASE = average error ÷ the error of "same hour yesterday" on the training data (2.361 °C); below 1 beats it.
+
+**Gate: foundation model wins.**
+
+| Condition (pre-registered) | Bar | Result |
+|---|---|---|
+| Champions by validation MASE | — | Chronos-2 (foundation), Holt-Winters (trained) |
+| Test MASE at least 5% lower | ≥ 5% | 0.478 vs 0.592: **19.2% lower** |
+| Diebold–Mariano with HLN correction, per-origin MAE | p < 0.05 | statistic -5.59, p = 1.1e-07 (145 origins) |
+| Also lower on the clean tail (41 origins) | lower | 0.367 vs 0.547 |
+| Both champions beat both baselines | report | yes |
+
+**All models, univariate track (test = 145 origins, clean tail = last 41):**
+
+| Model | Group | Validation MASE | Test MASE | Clean-tail MASE | Test MAE (°C) |
+|---|---|---|---|---|---|
+| Chronos-2 | foundation | 0.434 | **0.478** | 0.367 | 1.13 |
+| Moirai-2.0 | foundation | 0.456 | **0.497** | 0.383 | 1.17 |
+| TimesFM-2.5 | foundation | 0.458 | **0.506** | 0.413 | 1.19 |
+| Holt-Winters | trained | 0.467 | **0.592** | 0.547 | 1.40 |
+| N-BEATS | trained | 0.992 | **0.687** | 0.581 | 1.62 |
+| Random Forest | trained | 0.760 | **0.725** | 0.724 | 1.71 |
+| Same hour yesterday | baseline | 0.635 | **0.726** | 0.622 | 1.71 |
+| ARIMA | trained | 0.527 | **0.750** | 0.736 | 1.77 |
+| CatBoost | trained | 0.728 | **0.809** | 0.938 | 1.91 |
+| XGBoost | trained | 0.840 | **0.844** | 1.117 | 1.99 |
+| LightGBM | trained | 0.781 | **0.854** | 1.077 | 2.02 |
+| Prophet | trained | 0.718 | **0.917** | 0.735 | 2.16 |
+| Same hour last week | baseline | 1.102 | **1.220** | 1.099 | 2.88 |
+| LSTM | trained | 1.686 | **1.864** | 2.132 | 4.40 |
+
+- **In plain units:** Chronos-2's typical 24-hour forecast misses by 1.13 °C, Holt-Winters' by 1.40 °C.
+- **Leakage check:** TimesFM-2.5, the only model documented never to have seen ETTh1, also beats the trained champion (test 0.506, clean tail 0.413). The win does not depend on possible exposure.
+- **Oracle lags flattered ML (RMSE, old → rolling):** Random Forest 0.70 → 2.31, CatBoost 0.74 → 2.54, LightGBM 0.75 → 2.62, XGBoost 0.76 → 2.63: errors 3.3–3.5× larger without true past values.
+- **One-shot forecasting hurt statistics and N-BEATS (RMSE, old → rolling):** Holt-Winters 7.85 → 1.91, ARIMA 8.77 → 2.33, Prophet 4.03 → 2.89, N-BEATS 4.36 → 2.19.
+- **Load inputs did not help:** Chronos-2 with the six load series scores 0.492 vs 0.478 without them.
+- **Uncertainty:** weighted quantile loss (lower is better) Chronos-2 0.116, Moirai-2.0 0.120, TimesFM-2.5 0.122.
+- **Speed on one laptop CPU (idle, p50 / p95 per 24-hour forecast):** Moirai-2.0 16 / 17 ms; Chronos-2 161 / 202 ms; TimesFM-2.5 353 / 415 ms; Chronos-2 with loads 1015 / 1494 ms. Cost: $0.
+- **Falsification row met:** "Foundation model wins, also on the clean tail" → recommend zero-shot as the default first model.
 
 ## Considered Options
 

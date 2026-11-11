@@ -1,0 +1,43 @@
+# At-a-glance brief (rule R22). Edit here only; `python scripts/brief.py` writes it into README.md and the pages.
+repo_url: https://github.com/sabrinapribadi/time-series-forecasting-comparison
+brief:
+  - w: What
+    lines:
+      - A fair head-to-head of 15 forecasting methods on transformer oil temperature, 24 hours ahead, including three zero-shot foundation models.
+  - w: Why
+    lines:
+      - Teams must choose between fast statistics, machine learning and new pretrained models; this repo's first benchmark was not like-for-like.
+  - w: Who
+    lines:
+      - "Users: forecasting and data science teams in utilities and operations."
+      - "Data: ETTh1 (Informer, AAAI 2021): 17,420 hourly readings of oil temperature and six loads, July 2016 to June 2018."
+  - w: Where
+    lines:
+      - "[Dashboard](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/) on Streamlit Community Cloud (still the original benchmark); the fair results are in this README and [ADR-008](docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md)."
+  - w: When it fails
+    lines:
+      - "Pass mark fixed before any run: the zero-shot champion must beat the trained champion by ≥ 5%, pass a significance test, and win on the last 41 days."
+      - "No live A/B test: an offline rolling test of 145 daily forecasts. Found on the way: the old benchmark fed ML the true past values."
+  - w: How
+    lines:
+      - Every model forecasts 24 hours from the same history at 145 start points; champions picked on validation; Diebold–Mariano test.
+      - "Result: zero-shot Chronos-2 misses by 1.13 °C on average, 19% less than the best trained model, Holt-Winters (1.40 °C)."
+skills:
+  - group: Time-series forecasting
+    what: ARIMA, Holt-Winters, Prophet, gradient boosting, LSTM, N-BEATS
+    proof: [["ADR-004", "docs/adr/ADR-004-model-selection.md"], ["rolling_trained.py", "scripts/rolling_trained.py"]]
+  - group: Foundation models
+    what: Chronos-2, TimesFM-2.5 and Moirai-2.0, zero-shot on a laptop CPU
+    proof: [["rolling_foundation.py", "scripts/rolling_foundation.py"], ["ADR-008", "docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md"]]
+  - group: Evaluation and statistics
+    what: rolling-origin backtest, MASE, quantile loss, Diebold–Mariano test with small-sample correction
+    proof: [["rolling.py", "src/evaluation/rolling.py"], ["rolling_report.py", "scripts/rolling_report.py"]]
+  - group: Experiment design
+    what: pass mark set before the runs, leakage tiers, every deviation logged
+    proof: [["ADR-008", "docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md"]]
+  - group: Reinforcement learning
+    what: LinUCB bandit that picks a model per day
+    proof: [["ADR-007", "docs/adr/ADR-007-rl-model-selector.md"]]
+  - group: MLOps and CI
+    what: Optuna tuning, dashboard on precomputed results, CI with protocol and gate tests
+    proof: [["ci.yml", ".github/workflows/ci.yml"], ["test_rolling.py", "tests/test_rolling.py"]]

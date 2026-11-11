@@ -1,14 +1,34 @@
 # Time Series Forecasting Model Comparison
 
+<!-- brief:start -->
+
+## At a glance
+
+1. **What:** A fair head-to-head of 15 forecasting methods on transformer oil temperature, 24 hours ahead, including three zero-shot foundation models.
+2. **Why:** Teams must choose between fast statistics, machine learning and new pretrained models; this repo's first benchmark was not like-for-like.
+3. **Who:** Users: forecasting and data science teams in utilities and operations.
+   - Data: ETTh1 (Informer, AAAI 2021): 17,420 hourly readings of oil temperature and six loads, July 2016 to June 2018.
+4. **Where:** [Dashboard](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/) on Streamlit Community Cloud (still the original benchmark); the fair results are in this README and [ADR-008](docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md).
+5. **When it fails:** Pass mark fixed before any run: the zero-shot champion must beat the trained champion by ≥ 5%, pass a significance test, and win on the last 41 days.
+   - No live A/B test: an offline rolling test of 145 daily forecasts. Found on the way: the old benchmark fed ML the true past values.
+6. **How:** Every model forecasts 24 hours from the same history at 145 start points; champions picked on validation; Diebold–Mariano test.
+   - Result: zero-shot Chronos-2 misses by 1.13 °C on average, 19% less than the best trained model, Holt-Winters (1.40 °C).
+
+**Skills applied** (each linked to the file or decision that shows it):
+
+- **Time-series forecasting:** ARIMA, Holt-Winters, Prophet, gradient boosting, LSTM, N-BEATS — [ADR-004](docs/adr/ADR-004-model-selection.md), [rolling_trained.py](scripts/rolling_trained.py)
+- **Foundation models:** Chronos-2, TimesFM-2.5 and Moirai-2.0, zero-shot on a laptop CPU — [rolling_foundation.py](scripts/rolling_foundation.py), [ADR-008](docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md)
+- **Evaluation and statistics:** rolling-origin backtest, MASE, quantile loss, Diebold–Mariano test with small-sample correction — [rolling.py](src/evaluation/rolling.py), [rolling_report.py](scripts/rolling_report.py)
+- **Experiment design:** pass mark set before the runs, leakage tiers, every deviation logged — [ADR-008](docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md)
+- **Reinforcement learning:** LinUCB bandit that picks a model per day — [ADR-007](docs/adr/ADR-007-rl-model-selector.md)
+- **MLOps and CI:** Optuna tuning, dashboard on precomputed results, CI with protocol and gate tests — [ci.yml](.github/workflows/ci.yml), [test_rolling.py](tests/test_rolling.py)
+
+<!-- brief:end -->
+
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![Darts](https://img.shields.io/badge/Darts-0.27-0099CC?style=for-the-badge)](https://unit8co.github.io/darts/)
 [![Dataset](https://img.shields.io/badge/Dataset-ETT-00BFFF?style=for-the-badge)](https://github.com/zhouhaoyi/ETDataset)
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/)
-
-## Why This Project
-
-Practitioners choosing a forecasting model face a confusing landscape: statistical methods are fast and interpretable, ML models handle non-linearity well, and deep learning models promise the highest accuracy — but come with steep compute costs. This project runs all three families side-by-side on the same dataset under the same evaluation protocol, so the accuracy/complexity trade-offs are visible and reproducible. It also includes a **LinUCB contextual bandit** that learns which model to use per 24-hour window from offline historical data — turning the static benchmark into an adaptive model selection policy.
 
 ## Dashboard Preview
 
@@ -231,7 +251,39 @@ Where GLU = Gated Linear Unit: `GLU(a,b) = a ⊙ σ(b)`. Implemented via Darts `
 
 ---
 
-## Benchmark Results — ETTh1 (Horizon = 24)
+## Benchmark: fair rolling 24-hour test (ADR-008)
+
+- **Protocol:** every model forecasts the next 24 hours from the same history, at 145 daily start points across the test period (Feb–Jun 2018).
+- **How to read MASE:** average error ÷ the error of "same hour yesterday" on the training data (2.36 °C). Below 1 beats that rule; 0.48 means about half its error.
+
+| Rank | Model | Kind | Test MASE | Typical miss (°C) |
+|---|---|---|---|---|
+| 1 | Chronos-2 | Zero-shot | 0.478 | 1.13 |
+| 2 | Moirai-2.0 | Zero-shot | 0.497 | 1.17 |
+| 3 | TimesFM-2.5 | Zero-shot | 0.506 | 1.19 |
+| 4 | Holt-Winters | Trained | 0.592 | 1.40 |
+| 5 | N-BEATS | Trained | 0.687 | 1.62 |
+| 6 | Random Forest | Trained | 0.725 | 1.71 |
+| 7 | Same hour yesterday | Baseline | 0.726 | 1.71 |
+| 8 | ARIMA | Trained | 0.750 | 1.77 |
+| 9 | CatBoost | Trained | 0.809 | 1.91 |
+| 10 | XGBoost | Trained | 0.844 | 1.99 |
+| 11 | LightGBM | Trained | 0.854 | 2.02 |
+| 12 | Prophet | Trained | 0.917 | 2.16 |
+| 13 | Same hour last week | Baseline | 1.220 | 2.88 |
+| 14 | LSTM | Trained | 1.864 | 4.40 |
+
+- **Pass mark met (set before the runs):** Chronos-2 beats the best trained model, Holt-Winters, by 19% (bar 5%); the gap is statistically clear (Diebold–Mariano p = 1e-07); it also wins on the last 41 days, which no documented training set includes.
+- **Not a leakage artefact:** TimesFM-2.5, documented never to have seen this dataset, also beats every trained model.
+- **The old ranking was the protocol:** given true past values (ADR-005), ML looked best; forecasting from history alone, its errors grow 3.3–3.5×.
+- **Load inputs do not help** Chronos-2 (0.492 with them, 0.478 without).
+- **Speed on a laptop CPU, per 24-hour forecast (p50):** Moirai-2.0 16 ms, Chronos-2 161 ms, TimesFM-2.5 353 ms; cost $0.
+- **Dropped:** Transformer and TFT (retraining exceeded 2 hours on CPU; logged in ADR-008 before any test score was read).
+
+**Free-tier limits (R20):** the Streamlit dashboard sleeps after 12 hours without traffic and any visitor can wake it; it still shows the original benchmark below. This README is the fallback.
+
+<details><summary>Original benchmark (oracle lags, ADR-005): not like-for-like, kept for the record</summary>
+
 
 > **ML models**: multivariate mode (15 features: 6 load cols + 6 time sin/cos + 3 OT lags) + oracle lag filling + Optuna HPO.  
 > **DL models**: univariate mode (TFT also gets 6 load cols as past_covariates), 100 max epochs + early stopping (patience=15).  
@@ -262,6 +314,8 @@ Where GLU = Gated Linear Unit: `GLU(a,b) = a ⊙ σ(b)`. Implemented via Darts `
 - **CatBoost's ordered boosting** produces conservative in-sample predictions: test RMSE (0.744) < train RMSE (0.910). This is by design.
 - **DL v2 capacity increase** (LSTM hidden 128→256 + layers 2→3; Transformer d_model 64→128; all DL chunk 96→168) did not yield major gains — DL models remain constrained by univariate input vs ML oracle lags.
 - **Statistical models underperform** forecasting 3,484 steps in one shot — autoregressive error compounds; Prophet (4.030) is the statistical exception.
+
+</details>
 
 ## Feature Engineering
 

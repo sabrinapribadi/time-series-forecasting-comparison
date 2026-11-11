@@ -2,6 +2,14 @@
 
 Newest first. Each entry uses STAR (Situation, Task, Action, Result) so it can be told as a story.
 
+## [8.0.0] — 2026-11-11 — Fair rolling benchmark: zero-shot foundation models beat every trained model (ADR-008)
+**Files:** docs/adr/ADR-008 (new), src/evaluation/rolling.py, scripts/rolling_trained.py, scripts/rolling_foundation.py, scripts/rolling_report.py, scripts/rolling_latency.py, tests/test_rolling.py, data/forecasts/ETT/rolling/, docs/brief.yaml, scripts/brief.py, README.md, docs/PRD.md
+- **Situation:** The headline benchmark gave ML the true past values at every step while other models forecast 3,484 hours in one go, so it compared information, not skill. Pretrained forecasting models had arrived.
+- **Task:** One fair test for every model, zero-shot foundation models included, with the pass mark, champions and leakage handling fixed before any run.
+- **Action:** 145 daily 24-hour forecasts from the same history; Chronos-2, TimesFM-2.5 and Moirai-2.0 on CPU; champions by validation; Diebold–Mariano test; a clean tail no documented training set reaches. Found broken checkpoints (untrained deep models, mislabelled ML) and retrained them; Transformer and TFT dropped after 2 hours, logged before any test score.
+- **Result:** Chronos-2 errs 19% less than the best trained model, Holt-Winters (1.13 vs 1.40 °C; p = 1e-07; also on the clean tail). Without true past values, ML errors grow 3.3–3.5×.
+- **Talking point:** "Once every model saw the same history, a free pretrained model beat everything we had trained, and the old ML lead turned out to be the protocol."
+
 ## [7.2.0] — 2026-11-11 — Evidence tables for every cited paper (R2)
 **Files:** docs/references.yaml (new), scripts/evidence.py (new), docs/adr/ADR-*.md, data/outputs/references_evidence.json, CHANGELOG.md
 - **Situation:** ADRs listed papers without venue, peer review or citation counts.

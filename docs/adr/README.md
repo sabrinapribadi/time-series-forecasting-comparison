@@ -11,7 +11,7 @@ All major design decisions are documented here before implementation.
 | [ADR-005](ADR-005-feature-engineering.md) | Feature engineering: Oracle lag filling for ML models on test set | Accepted |
 | [ADR-006](ADR-006-deployment.md) | Deployment: Pre-computed JSON results → Streamlit 7-tab dashboard | Accepted |
 | [ADR-007](ADR-007-rl-model-selector.md) | RL: LinUCB contextual bandit for offline adaptive model selection | Accepted |
-| [ADR-008](ADR-008-fair-rolling-benchmark-and-foundation-models.md) | Fair rolling 24-hour benchmark; zero-shot foundation models (Chronos-2, TimesFM-2.5, Moirai-2.0) vs trained champions | Accepted — pre-registered, not yet run |
+| [ADR-008](ADR-008-fair-rolling-benchmark-and-foundation-models.md) | Fair rolling 24-hour benchmark; zero-shot foundation models (Chronos-2, TimesFM-2.5, Moirai-2.0) vs trained champions | Accepted — gate met: zero-shot Chronos-2 beats the trained champion by 19% |
 
 ## Decision Dependency Graph
 

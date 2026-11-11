@@ -1,0 +1,1 @@
+{"origins": 30, "cpu": "arm", "torch_threads": 4, "models": {"chronos2": {"p50_ms": 161.2, "p95_ms": 201.5}, "timesfm25": {"p50_ms": 353.1, "p95_ms": 415.4}, "moirai2": {"p50_ms": 15.6, "p95_ms": 16.9}, "chronos2_cov": {"p50_ms": 1014.6, "p95_ms": 1494.2}}}
