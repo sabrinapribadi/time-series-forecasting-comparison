@@ -13,7 +13,7 @@ brief:
       - "Data: ETTh1 (Informer, AAAI 2021): 17,420 hourly readings of oil temperature and six loads, July 2016 to June 2018."
   - w: Where
     lines:
-      - "[Dashboard](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/) on Streamlit Community Cloud (still the original benchmark); the fair results are in this README and [ADR-008](docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md)."
+      - "[Results page](https://sabrinapribadi.github.io/time-series-forecasting-comparison/) and [technical walkthrough](https://sabrinapribadi.github.io/time-series-forecasting-comparison/build.html) on GitHub Pages; [dashboard](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/) on Streamlit Community Cloud (still the original benchmark)."
   - w: When it fails
     lines:
       - "Pass mark fixed before any run: the zero-shot champion must beat the trained champion by ≥ 5%, pass a significance test, and win on the last 41 days."

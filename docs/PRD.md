@@ -2,7 +2,7 @@ PRODUCT REQUIREMENTS DOCUMENT (PRD)
 Project: Time Series Forecasting Model Comparison
 Version: 8.0 (fair rolling 24-hour benchmark and zero-shot foundation models, ADR-008; supersedes the oracle-lag headline)
 Author: Sabrina Pribadi
-Date: July 10, 2026
+Date: November 11, 2026
 Status: Active — LinUCB bandit trained offline on 145 test windows; 7-tab dashboard live
 
 

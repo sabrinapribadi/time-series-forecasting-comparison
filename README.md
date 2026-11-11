@@ -8,7 +8,7 @@
 2. **Why:** Teams must choose between fast statistics, machine learning and new pretrained models; this repo's first benchmark was not like-for-like.
 3. **Who:** Users: forecasting and data science teams in utilities and operations.
    - Data: ETTh1 (Informer, AAAI 2021): 17,420 hourly readings of oil temperature and six loads, July 2016 to June 2018.
-4. **Where:** [Dashboard](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/) on Streamlit Community Cloud (still the original benchmark); the fair results are in this README and [ADR-008](docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md).
+4. **Where:** [Results page](https://sabrinapribadi.github.io/time-series-forecasting-comparison/) and [technical walkthrough](https://sabrinapribadi.github.io/time-series-forecasting-comparison/build.html) on GitHub Pages; [dashboard](https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/) on Streamlit Community Cloud (still the original benchmark).
 5. **When it fails:** Pass mark fixed before any run: the zero-shot champion must beat the trained champion by ≥ 5%, pass a significance test, and win on the last 41 days.
    - No live A/B test: an offline rolling test of 145 daily forecasts. Found on the way: the old benchmark fed ML the true past values.
 6. **How:** Every model forecasts 24 hours from the same history at 145 start points; champions picked on validation; Diebold–Mariano test.
@@ -280,7 +280,7 @@ Where GLU = Gated Linear Unit: `GLU(a,b) = a ⊙ σ(b)`. Implemented via Darts `
 - **Speed on a laptop CPU, per 24-hour forecast (p50):** Moirai-2.0 16 ms, Chronos-2 161 ms, TimesFM-2.5 353 ms; cost $0.
 - **Dropped:** Transformer and TFT (retraining exceeded 2 hours on CPU; logged in ADR-008 before any test score was read).
 
-**Free-tier limits (R20):** the Streamlit dashboard sleeps after 12 hours without traffic and any visitor can wake it; it still shows the original benchmark below. This README is the fallback.
+**Free-tier limits (R20):** the Streamlit dashboard sleeps after 12 hours without traffic and any visitor can wake it; it still shows the original benchmark below. The static [results page](https://sabrinapribadi.github.io/time-series-forecasting-comparison/) is the fallback.
 
 <details><summary>Original benchmark (oracle lags, ADR-005): not like-for-like, kept for the record</summary>
 

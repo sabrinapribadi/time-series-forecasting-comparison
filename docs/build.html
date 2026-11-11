@@ -1,0 +1,502 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Forecasting Build Walkthrough</title>
+<!-- share preview (portfolio rule R18) -->
+<meta name="description" content="How the forecasting comparison was built, phase by phase: the bar set beforehand, the result, obstacles and fixes.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sabrinapribadi.github.io/time-series-forecasting-comparison/build.html">
+<meta property="og:title" content="Forecasting Build Walkthrough">
+<meta property="og:description" content="How the forecasting comparison was built, phase by phase: the bar set beforehand, the result, obstacles and fixes.">
+<meta property="og:image" content="https://sabrinapribadi.github.io/time-series-forecasting-comparison/assets/preview-build.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="627">
+<meta property="og:image:alt" content="Top of the Forecasting Build Walkthrough page">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /share preview -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap" rel="stylesheet">
+<style>
+/* Technical walkthrough (portfolio rule R14). Generated from the shared walkthrough template. */
+:root {
+  --bg: #f4f2ed; --surface: #fffdf9; --fg: #1f1d1a; --muted: #625d55; --line: #e0dbd1; --tint: #ece8df;
+  --accent: #0f6e74; --accent-soft: #d8eeee;
+  --ok: #2c7a4b; --ok-soft: #dcefe3; --bad: #b23a2a; --bad-soft: #f6e0dc; --run: #35648f; --run-soft: #dfe9f3;
+  --lane-a: #f1eee7; --lane-b: #f8f6f1;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15130f; --surface: #1d1a15; --fg: #ece6db; --muted: #a49c8f; --line: #353026; --tint: #24201a;
+  --accent: #5cc6cc; --accent-soft: #123536;
+  --ok: #5fc48a; --ok-soft: #173326; --bad: #f08068; --bad-soft: #42221c; --run: #7fb0e0; --run-soft: #1b2a3a;
+  --lane-a: #1a1712; --lane-b: #17140f;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #15130f; --surface: #1d1a15; --fg: #ece6db; --muted: #a49c8f; --line: #353026; --tint: #24201a;
+  --accent: #5cc6cc; --accent-soft: #123536;
+  --ok: #5fc48a; --ok-soft: #173326; --bad: #f08068; --bad-soft: #42221c; --run: #7fb0e0; --run-soft: #1b2a3a;
+  --lane-a: #1a1712; --lane-b: #17140f;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--font-body); }
+.wrap { max-width: 1160px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 64px; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font: 700 clamp(28px, 4vw, 42px)/1.15 var(--font-head); letter-spacing: -0.01em; }
+h2 { font: 700 24px/1.2 var(--font-head); }
+h3 { font-size: 15px; font-weight: 600; }
+p { margin: 0; }
+.eyebrow { font: 600 12px/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+header.top { display: grid; gap: 14px; padding-block: 8px 24px; border-bottom: 1px solid var(--line); }
+header.top .lede { font-size: 17px; max-width: 66ch; }
+.links { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 500 13px var(--font-mono); }
+.links a { text-decoration: none; }
+.links a:hover { text-decoration: underline; }
+
+section.block { display: grid; gap: 18px; padding-block: 34px 6px; }
+.howto { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.howto div { border-left: 3px solid var(--accent); padding: 2px 0 2px 12px; display: grid; gap: 2px; }
+.howto b { font-size: 14px; }
+.howto span { font-size: 13px; color: var(--muted); }
+
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 11.5px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); background: var(--tint); }
+tr:last-child td { border-bottom: 0; }
+
+.map { min-width: 980px; }
+.map th.ph { cursor: pointer; white-space: nowrap; }
+.map th.ph:hover, .map th.ph.on { color: var(--accent); }
+.map th.ph.on { background: var(--accent-soft); }
+.map td.lane { font: 600 12px var(--font-mono); color: var(--muted); white-space: nowrap; background: var(--tint); }
+.map td.cell { font-size: 12.5px; line-height: 1.4; cursor: pointer; }
+.map td.cell.on { background: var(--accent-soft); }
+.map td.cell span { display: block; }
+.map td.cell span + span { margin-top: 4px; }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 600 11px/1 var(--font-mono); letter-spacing: 0.03em; padding: 5px 8px; border-radius: 999px; white-space: nowrap; }
+.chip.pass { background: var(--ok-soft); color: var(--ok); }
+.chip.fail { background: var(--bad-soft); color: var(--bad); }
+.chip.run { background: var(--run-soft); color: var(--run); }
+.chip.plan { background: var(--tint); color: var(--muted); }
+
+.picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.picker button { font: 600 13px var(--font-mono); border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 8px 12px; cursor: pointer; display: grid; gap: 4px; justify-items: start; }
+.picker button small { font: 500 11px var(--font-body); color: var(--muted); }
+.picker button[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); }
+@media (max-width: 600px) {
+  .picker { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .picker button { padding: 7px 9px; min-width: 0; }
+  .picker button small { display: none; }
+  .picker .chip { white-space: normal; line-height: 1.25; }
+}
+
+.phase-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+.phase-head .dates { font: 500 12px var(--font-mono); color: var(--muted); }
+.scqa { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.scqa div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; }
+.scqa b { font: 600 11px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.scqa p { font-size: 13.5px; line-height: 1.5; }
+@media (max-width: 860px) { .scqa { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .scqa { grid-template-columns: minmax(0, 1fr); } }
+
+.lanewrap { display: grid; gap: 12px; }
+.walk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.walk button { font: 600 13px var(--font-body); border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.walk button.primary { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.walk button:disabled { opacity: 0.45; cursor: default; }
+.walk .pos { font: 600 12px var(--font-mono); color: var(--muted); }
+svg.swim { display: block; }
+svg.swim .lane-bg { fill: var(--lane-a); }
+svg.swim .lane-bg.alt { fill: var(--lane-b); }
+svg.swim .lane-label { fill: var(--muted); font: 600 11px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+svg.swim .lane-line { stroke: var(--line); }
+svg.swim .edge { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+svg.swim .arrowhead { fill: var(--muted); }
+svg.swim g.step { cursor: pointer; outline: none; }
+svg.swim g.step rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+svg.swim g.step text { fill: var(--fg); font: 500 11.5px var(--font-body); }
+svg.swim g.step .num { fill: var(--accent); font: 700 11px var(--font-mono); }
+svg.swim g.step.kind-fail rect { stroke: var(--bad); }
+svg.swim g.step.kind-fix rect { stroke: var(--ok); }
+svg.swim g.step.kind-plan rect { stroke-dasharray: 4 3; }
+svg.swim g.step:hover rect, svg.swim g.step:focus rect { stroke: var(--accent); stroke-width: 2; }
+svg.swim g.step.current rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2.4; }
+svg.swim g.step.done rect { fill: var(--tint); }
+.lane-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--muted); }
+.lane-legend i { display: inline-block; width: 18px; height: 11px; border-radius: 3px; border: 1.5px solid var(--line); vertical-align: -1px; margin-right: 6px; background: var(--surface); }
+.lane-legend i.fail { border-color: var(--bad); }
+.lane-legend i.fix { border-color: var(--ok); }
+.lane-legend i.plan { border-style: dashed; }
+
+.detail { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; }
+.detail .kv { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 4px 12px; font-size: 13.5px; }
+.detail .kv b { font: 600 11px var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+.detail code, td code { font: 12px var(--font-mono); background: var(--tint); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+#phase { display: grid; gap: 30px; padding-top: 10px; }
+#phase > .part + .part { border-top: 1px solid var(--line); padding-top: 26px; }
+.ph-top { display: grid; gap: 14px; }
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 36px; align-items: start; }
+@media (max-width: 860px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.box { display: grid; gap: 12px; min-width: 0; align-content: start; }
+.box > .eyebrow ~ .eyebrow { margin-top: 16px; }
+ul.points { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 14px; }
+.star { margin: 0; border-left: 3px solid var(--accent); padding: 4px 0 4px 14px; font: italic 600 16px/1.5 var(--font-head); }
+.obst td:first-child { width: 22%; }
+@media (max-width: 600px) {
+  .obst thead { display: none; }
+  .obst, .obst tbody, .obst tr, .obst td { display: block; width: 100%; }
+  .obst tr { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .obst tr:last-child { border-bottom: 0; }
+  .obst td, .obst td:first-child { width: auto; border: 0; padding: 3px 0; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
+  .obst td::before { content: attr(data-label); font: 600 10.5px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); padding-top: 3px; }
+  .obst td:first-child { font-weight: 600; }
+}
+.verdict-ok { color: var(--ok); font-weight: 600; }
+.verdict-no { color: var(--bad); font-weight: 600; }
+.verdict-wait { color: var(--run); font-weight: 600; }
+.tip { position: fixed; z-index: 10; max-width: 300px; background: var(--fg); color: var(--bg); font-size: 12.5px; line-height: 1.45; padding: 8px 10px; border-radius: 8px; pointer-events: none; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18); }
+.tip b { display: block; margin-bottom: 2px; }
+footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+/* brief:css:start (rule R22, written by scripts/brief.py) */
+.brief { display: grid; gap: 12px; padding-block: 18px 4px; text-align: left; }
+.brief a { color: var(--accent); }
+.brief-list { list-style: none; margin: 0; padding: 0 !important; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; }
+.brief-list li { display: grid; align-content: start; gap: 4px; padding: 12px 14px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line, var(--border)); border-radius: 8px; }
+.brief-w { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.brief-main { font-size: 14.5px; line-height: 1.45; color: var(--fg, var(--text)); }
+.brief-sub { font-size: 13px; line-height: 1.45; color: var(--muted); }
+.brief-skills summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.brief-skills ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; line-height: 1.45; }
+.brief-proof { font-size: 12px; margin-left: 4px; white-space: nowrap; }
+/* brief:css:end */
+</style>
+
+<div class="wrap">
+<header class="top">
+  <span class="eyebrow">Technical walkthrough · time-series forecasting</span>
+  <h1>How the forecasting comparison was built, phase by phase</h1>
+<!-- brief:start -->
+<section class="brief" id="brief" aria-label="Project at a glance"><span class="eyebrow">At a glance</span><ol class="brief-list"><li><span class="brief-w">1 · What</span><span class="brief-main">A fair head-to-head of 15 forecasting methods on transformer oil temperature, 24 hours ahead, including three zero-shot foundation models.</span></li><li><span class="brief-w">2 · Why</span><span class="brief-main">Teams must choose between fast statistics, machine learning and new pretrained models; this repo&#x27;s first benchmark was not like-for-like.</span></li><li><span class="brief-w">3 · Who</span><span class="brief-main">Users: forecasting and data science teams in utilities and operations.</span></li><li><span class="brief-w">4 · Where</span><span class="brief-main"><a href="https://sabrinapribadi.github.io/time-series-forecasting-comparison/">Results page</a> and <a href="https://sabrinapribadi.github.io/time-series-forecasting-comparison/build.html">technical walkthrough</a> on GitHub Pages; <a href="https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/">dashboard</a> on Streamlit Community Cloud (still the original benchmark).</span></li><li><span class="brief-w">5 · When it fails</span><span class="brief-main">Pass mark fixed before any run: the zero-shot champion must beat the trained champion by ≥ 5%, pass a significance test, and win on the last 41 days.</span></li><li><span class="brief-w">6 · How</span><span class="brief-main">Every model forecasts 24 hours from the same history at 145 start points; champions picked on validation; Diebold–Mariano test.</span></li></ol><details class="brief-skills"><summary>Skills applied, with proof</summary><ul><li><b>Time-series forecasting</b> ARIMA, Holt-Winters, Prophet, gradient boosting, LSTM, N-BEATS <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/docs/adr/ADR-004-model-selection.md">ADR-004</a> <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/scripts/rolling_trained.py">rolling_trained.py</a></li><li><b>Foundation models</b> Chronos-2, TimesFM-2.5 and Moirai-2.0, zero-shot on a laptop CPU <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/scripts/rolling_foundation.py">rolling_foundation.py</a> <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md">ADR-008</a></li><li><b>Evaluation and statistics</b> rolling-origin backtest, MASE, quantile loss, Diebold–Mariano test with small-sample correction <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/src/evaluation/rolling.py">rolling.py</a> <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/scripts/rolling_report.py">rolling_report.py</a></li><li><b>Experiment design</b> pass mark set before the runs, leakage tiers, every deviation logged <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md">ADR-008</a></li><li><b>Reinforcement learning</b> LinUCB bandit that picks a model per day <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/docs/adr/ADR-007-rl-model-selector.md">ADR-007</a></li><li><b>MLOps and CI</b> Optuna tuning, dashboard on precomputed results, CI with protocol and gate tests <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/.github/workflows/ci.yml">ci.yml</a> <a class="brief-proof" href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/tests/test_rolling.py">test_rolling.py</a></li></ul></details></section>
+<!-- brief:end -->
+
+  <div class="links">
+    <a href="./">← Results page</a>
+    <a href="https://github.com/sabrinapribadi/time-series-forecasting-comparison">Code and ADRs</a>
+    <a href="https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/CHANGELOG.md">Change log (STAR)</a>
+  </div>
+</header>
+
+<section class="block" aria-labelledby="h-read">
+  <span class="eyebrow" id="h-read">How to read each phase</span>
+  <div class="howto">
+    <div><b>SCQA</b><span>Situation · Complication · Question · Answer (the gate result)</span></div>
+    <div><b>Swimlane</b><span>Build steps by layer; step through with Next</span></div>
+    <div><b>Decisions</b><span>What was chosen, with the ADR that records why</span></div>
+    <div><b>Obstacles</b><span>Symptom → root cause → fix → prevention</span></div>
+    <div><b>Result vs gate</b><span>Pass or fail against the bar set in advance</span></div>
+    <div><b>Lessons + STAR</b><span>What carries over, and the one-line interview story</span></div>
+  </div>
+</section>
+
+<section class="block" aria-labelledby="h-map">
+  <div class="phase-head"><h2 id="h-map">System map</h2><span class="muted">What each phase adds to each layer. Click a phase to open it.</span></div>
+  <div class="scroll"><table class="map" id="map"></table></div>
+</section>
+
+<section class="block" aria-labelledby="h-phase">
+  <span class="eyebrow" id="h-phase">Phase</span>
+  <div class="picker" id="picker" role="tablist" aria-label="Phases"></div>
+  <article id="phase"></article>
+</section>
+
+<footer>
+  <span>Every number comes from <code>data/forecasts/ETT/</code>, the ADRs and <code>CHANGELOG.md</code>. Data: ETTh1 (Zhou et al., AAAI 2021).</span>
+  <span>Sabrina Pribadi · last updated <span id="updated"></span> · <a href="./">results page</a> · <a href="https://github.com/sabrinapribadi/time-series-forecasting-comparison">github.com/sabrinapribadi/time-series-forecasting-comparison</a></span>
+</footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+<script>
+const P = {updated: '11 Nov 2026'};
+const REPO = "https://github.com/sabrinapribadi/time-series-forecasting-comparison/blob/main/";
+const ADR = {"001": "docs/adr/ADR-001-task-framing.md", "002": "docs/adr/ADR-002-preprocessing.md", "003": "docs/adr/ADR-003-validation-strategy.md",
+  "004": "docs/adr/ADR-004-model-selection.md", "005": "docs/adr/ADR-005-feature-engineering.md", "006": "docs/adr/ADR-006-deployment.md",
+  "007": "docs/adr/ADR-007-rl-model-selector.md", "008": "docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md"};
+const LANES = ["Data (ETT)", "Features", "Model", "Evaluation", "Serving & UI", "Platform & CI", "Decision"];
+
+const PHASES = [
+{
+  id: "p1", tag: "P1", name: "Data and split", dates: "25 Jun – 2 Jul 2026", verdict: ["pass", "passed"],
+  scqa: ["ETTh1 holds two years of hourly transformer readings: oil temperature and six loads.",
+         "A shuffled split leaks the future into training.",
+         "How do we split so every test hour is truly unseen?",
+         "By time, 70/10/20, matching the published benchmark: 12,194 / 1,742 / 3,484 hours."],
+  steps: [
+    ["Data (ETT)", "ETT loader", "Reads ETTh1, ETTh2, ETTm1 and ETTm2, sorted by time.", "One loader for four variants.", "src/data/ett_loader.py"],
+    ["Data (ETT)", "Chronological split", "70/10/20 by row count: 12,194 / 1,742 / 3,484 hours.", "No future data in training; matches Informer.", "src/data/ett_loader.py"],
+    ["Features", "Time features", "Hour, weekday and month as sine and cosine pairs.", "Daily and weekly cycles without dummy columns.", "src/data/ett_loader.py"],
+    ["Features", "Lags and rolling stats", "Lags 1, 2 and 24 hours; rolling statistics shifted one step.", "Recent history for tree models.", "src/data/ett_loader.py"]
+  ],
+  decisions: [["Univariate first, multivariate later", "001"], ["Cyclical encodings and lags", "002"], ["Chronological 70/10/20 split", "003"]],
+  results: [["Split sizes", "match Informer", "12,194 / 1,742 / 3,484", "ok"], ["Lag leakage check", "no future values", "shift(n) verified", "ok"]],
+  obstacles: [["Percentage error blew up in winter", "Oil temperature goes below 0 °C; MAPE divides by values near 0", "Skip |y| < 0.1 in MAPE", "Prefer MASE, which never divides by the target"]],
+  lessons: ["Split by time, never by shuffled rows.", "Pick metrics that survive negative temperatures."],
+  star: "I split two years of hourly data by time, matching the published benchmark, so every test hour was unseen."
+},
+{
+  id: "p2", tag: "P2", name: "Eleven models", dates: "25 Jun – 2 Jul 2026", verdict: ["pass", "built"],
+  scqa: ["Teams choose between statistics, machine learning and deep learning.",
+         "Each family has its own interface and tuning.",
+         "Can one pipeline train and compare all of them?",
+         "Yes: 11 models behind one training script, with tuning budgets stated per model."],
+  steps: [
+    ["Model", "Statistical", "Holt-Winters, ARIMA (order chosen automatically) and Prophet.", "Fast, interpretable baselines.", "src/models/statistical.py"],
+    ["Model", "Machine learning", "Random Forest, XGBoost, LightGBM and CatBoost on time features and lags.", "Strong on tabular signals.", "src/models/ml.py"],
+    ["Model", "Deep learning", "LSTM, Transformer, N-BEATS and TFT (Darts), 168-hour input window.", "Learn sequences directly.", "src/models/deep_learning.py"],
+    ["Evaluation", "Tuning", "Optuna: Holt-Winters 15 trials, Random Forest 10, XGBoost 50, CatBoost 8.", "Budgets stated, not hidden.", "scripts/train_model.py"],
+    ["Platform & CI", "One train script", "Same command for every model; checkpoints saved per run.", "Comparable runs.", "scripts/train_model.py"]
+  ],
+  decisions: [["Compare all 11, tune where it pays", "004"]],
+  results: [["Models trained", "11", "11", "ok"]],
+  obstacles: [["Large LSTM hung on the Mac GPU", "Apple GPU ran out of memory", "Kept the smaller LSTM", "Try deep models on CPU first"],
+              ["Saved deep models could not forecast (found in P5)", "Darts drops the trained network when pickled", "Save with Darts' own format", "Reload every checkpoint in a test"]],
+  lessons: ["One script for every model family keeps comparisons honest.", "A checkpoint that cannot reload is not a checkpoint."],
+  star: "I put 11 forecasting models from three families behind one training script, with tuning budgets stated per model."
+},
+{
+  id: "p3", tag: "P3", name: "Original benchmark", dates: "2–3 Jul 2026", verdict: ["fail", "not like-for-like"],
+  scqa: ["All 11 models were scored on the 3,484 test hours.",
+         "ML received the true past values at every hour; the others forecast 3,484 hours in one go.",
+         "Which model is best?",
+         "Random Forest looked best (RMSE 0.703), but the ranking measured information, not skill (found in P5)."],
+  steps: [
+    ["Features", "True past values for ML", "ML lags filled with real oil temperature at test time.", "Called the upper bound then; it made the test unequal.", "docs/adr/ADR-005-feature-engineering.md", "fail"],
+    ["Evaluation", "Metrics", "RMSE, MAE, SMAPE, R², MASE and more per model.", "One table for every family.", "src/evaluation/metrics.py"],
+    ["Serving & UI", "Dashboard", "Streamlit app reading precomputed results; no models at runtime.", "Runs on the free tier.", "src/ui/dashboard.py"],
+    ["Platform & CI", "Results committed", "One JSON per model with true and predicted values.", "The dashboard's source.", "data/forecasts/ETT/"]
+  ],
+  decisions: [["True past values for ML at test time", "005"], ["Precomputed results for a free dashboard", "006"]],
+  results: [["Best model, as published then", "—", "Random Forest, RMSE 0.703", ""], ["Same information for every model", "yes", "no: ML saw true past values", "no"]],
+  obstacles: [["ML 5–12× better than every other family", "True past values turn a 24-hour forecast into a 1-hour one", "Replaced by the rolling test (P5)", "Give every model the same history"]],
+  lessons: ["A huge gap between model families is a reason to check the protocol."],
+  star: "My first benchmark crowned Random Forest; a later audit showed it had been handed the answers, so I rebuilt the test."
+},
+{
+  id: "p4", tag: "P4", name: "Model selector (RL)", dates: "10 Jul 2026", verdict: ["fail", "lost to the best fixed model"],
+  scqa: ["Different days may suit different models.",
+         "Choosing per day needs a policy that learns from what each day looks like.",
+         "Can a contextual bandit beat always using the best single model?",
+         "No: 0.692 vs 0.670 RMSE. It beat random choice by 80% but lost to always using Random Forest."],
+  steps: [
+    ["Features", "Day features", "Eight context features per 24-hour window (level, trend, volatility…).", "What the policy sees.", "src/rl/window_features.py"],
+    ["Model", "LinUCB bandit", "Contextual bandit, exploration weight 0.5, pure NumPy.", "Interpretable weights per model.", "src/rl/bandit.py"],
+    ["Evaluation", "Policies compared", "Best per day (ceiling), bandit, best fixed model, random.", "Beat the best fixed choice, not just random.", "src/rl/model_selector.py"],
+    ["Serving & UI", "Selector tab", "Dashboard tab with picks, regret and a what-if.", "Shows how it chooses.", "src/ui/dashboard.py"]
+  ],
+  decisions: [["LinUCB over Thompson sampling or a full RL environment", "007"]],
+  results: [["Bandit vs random", "better", "0.692 vs 3.388 RMSE", "ok"], ["Bandit vs best fixed model", "better", "0.692 vs 0.670 RMSE", "no"]],
+  obstacles: [["Bandit picked ML on 98% of days", "Its arms were scored with true past values (P3)", "Rerun on fair forecasts only under a new decision (ADR-008)", "Check arm scores before learning over them"]],
+  lessons: ["Compare a learned policy with the best fixed choice, not with random."],
+  star: "My bandit beat random choice by 80% but lost to always using the best model, and I report that."
+},
+{
+  id: "p5", tag: "P5", name: "Fair test and foundation models", dates: "11 Nov 2026", verdict: ["pass", "passed"],
+  scqa: ["Pretrained forecasting models arrived that need no training on our data.",
+         "The old benchmark was not like-for-like.",
+         "With the same history for every model, does a zero-shot model beat our best trained model?",
+         "Yes: Chronos-2 errs 19% less than Holt-Winters (MASE 0.478 vs 0.592), p = 1e-07, also on the last 41 days."],
+  steps: [
+    ["Decision", "Pre-registered", "Protocol, champions, 5% bar and leakage tiers pushed before any code.", "Results cannot move the goalposts.", "docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md"],
+    ["Evaluation", "Rolling origins", "145 daily 24-hour forecasts from the same history; 71 for validation.", "A like-for-like test.", "src/evaluation/rolling.py"],
+    ["Model", "Checkpoints repaired", "Untrained deep models and mislabelled ML found; retrained with ADR-004 settings.", "Old files could not forecast.", "scripts/rolling_trained.py", "fix"],
+    ["Model", "Zero-shot models", "Chronos-2, TimesFM-2.5 and Moirai-2.0 on a laptop CPU, last 2,048 hours as context.", "No training on ETTh1.", "scripts/rolling_foundation.py"],
+    ["Evaluation", "Leakage tiers", "Clean tail: the last 1,008 hours, beyond any documented training split.", "Rule out memorised data.", "src/evaluation/rolling.py"],
+    ["Evaluation", "Gate", "Champions by validation; at least 5% lower error, Diebold–Mariano p < 0.05, clean tail.", "Fixed in ADR-008.", "scripts/rolling_report.py"],
+    ["Decision", "Two models dropped", "Transformer and TFT after 2 hours of CPU retraining; logged before any test score.", "A stated time box.", "docs/adr/ADR-008-fair-rolling-benchmark-and-foundation-models.md", "fail"]
+  ],
+  decisions: [["Rolling protocol, champions and gate fixed in advance", "008"], ["Timestral on hold: its licence excludes large employers", "008"]],
+  results: [["Error lower than trained champion", "≥ 5%", "19.2%", "ok"], ["Diebold–Mariano p", "< 0.05", "1.1e-07", "ok"], ["Clean-tail MASE", "lower", "0.367 vs 0.547", "ok"]],
+  obstacles: [["Deep-model checkpoints could not forecast", "Pickling dropped the trained networks", "Retrained and saved in Darts' format", "Reload every checkpoint in a test"],
+              ["Zero-shot speed looked slow (5.6 s)", "Five jobs shared the CPU", "Re-timed alone: 16–353 ms per forecast", "Time models on an idle machine"]],
+  lessons: ["A free pretrained model is now the baseline to beat.", "Without true past values, ML errors grew 3.3–3.5×."],
+  star: "With the same history for every model, a free pretrained model beat everything I had trained, by 19%, and I set the bar before running anything."
+},
+{
+  id: "p6", tag: "P6", name: "Pages and CI", dates: "11 Nov 2026", verdict: ["pass", "passed"],
+  scqa: ["Readers skim; reviewers audit.",
+         "Results lived in tables and a dashboard that still shows the old benchmark.",
+         "Can both find the answer fast, with every number explained?",
+         "Yes: a brief first, a results page, this walkthrough, and browser tests in CI."],
+  steps: [
+    ["Serving & UI", "Brief", "What, why, who, where, when it fails and how, from one source file.", "Rule R22.", "docs/brief.yaml"],
+    ["Serving & UI", "Results page", "Problem, data, approach, the fair result and a day-by-day what-if.", "Readable in about two minutes.", "docs/index.html"],
+    ["Serving & UI", "Walkthrough", "This page: every phase, pass or fail.", "For technical review.", "docs/build.html"],
+    ["Platform & CI", "CI", "Lint, protocol and gate tests, brief check, browser tests; Pages deploy only after they pass.", "Rule R19.", ".github/workflows/ci.yml"]
+  ],
+  decisions: [], results: [["Browser checks", "all pass", "all pass", "ok"]],
+  obstacles: [],
+  lessons: ["Lead with the fair result; keep the old one, labelled."],
+  star: "The page leads with the fair result and keeps the old one, labelled, so anyone can see what changed and why."
+}];
+
+const MAP = {
+  "Data (ETT)": {p1: ["ETTh1–ETTm2 loader", "70/10/20 by time"]},
+  "Features": {p1: ["Time encodings", "Lags 1, 2, 24"], p3: ["True past values (ML)"], p4: ["Day features"]},
+  "Model": {p2: ["3 statistical", "4 ML", "4 deep"], p4: ["LinUCB bandit"], p5: ["3 zero-shot", "Repaired checkpoints"]},
+  "Evaluation": {p2: ["Optuna budgets"], p3: ["One-shot test"], p4: ["vs best fixed"], p5: ["145 rolling days", "Gate + DM test"]},
+  "Serving & UI": {p3: ["Streamlit dashboard"], p4: ["Selector tab"], p6: ["Results page", "Walkthrough"]},
+  "Platform & CI": {p2: ["One train script"], p3: ["Results as JSON"], p6: ["CI + gated Pages"]},
+  "Decision": {p5: ["Pre-registered", "2 models dropped"]}
+};
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const tip = $("#tip");
+function showTip(e, html) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect(), x = (e.clientX ?? e.x) + 14, y = (e.clientY ?? e.y) + 14;
+  tip.style.left = Math.max(8, Math.min(x, innerWidth - r.width - 8)) + "px";
+  tip.style.top = Math.max(8, Math.min(y, innerHeight - r.height - 8)) + "px";
+}
+function hideTip() { tip.hidden = true; }
+const chip = v => `<span class="chip ${v[0]}">${esc(v[1])}</span>`;
+const adrLink = n => `<a href="${REPO}${ADR[n]}">ADR-${n}</a>`;
+const fileLink = f => f === "planned" ? '<span class="muted">planned</span>'
+  : f.split(" · ").map(x => /^(ADR|CHANGELOG)/.test(x) ? esc(x) : `<code>${esc(x)}</code>`).join(" · ");
+
+function renderMap() {
+  const head = `<thead><tr><th>Layer</th>${PHASES.map(p => `<th class="ph" data-id="${p.id}" tabindex="0" title="Open ${p.tag}">${p.tag}<br><span class="muted" style="text-transform:none;font-weight:500">${esc(p.name.split(" ")[0])}…</span></th>`).join("")}</tr></thead>`;
+  const rows = Object.keys(MAP).map(lane => `<tr><td class="lane">${esc(lane)}</td>${PHASES.map(p =>
+    `<td class="cell" data-id="${p.id}">${(MAP[lane][p.id] || []).map(t => `<span>${esc(t)}</span>`).join("") || '<span class="muted">·</span>'}</td>`).join("")}</tr>`).join("");
+  $("#map").innerHTML = head + "<tbody>" + rows + "</tbody>";
+  $("#map").querySelectorAll("th.ph, td.cell").forEach(el => {
+    const p = PHASES.find(x => x.id === el.dataset.id);
+    el.addEventListener("click", () => select(p.id, true));
+    el.addEventListener("keydown", e => { if (e.key === "Enter") select(p.id, true); });
+    el.addEventListener("mousemove", e => showTip(e, `<b>${esc(p.tag)} · ${esc(p.name)}</b>${esc(p.verdict[1])}. Click to open.`));
+    el.addEventListener("mouseleave", hideTip);
+  });
+}
+function renderPicker() {
+  $("#picker").innerHTML = PHASES.map(p => `<button role="tab" data-id="${p.id}" aria-selected="false">${p.tag} ${chip(p.verdict)}<small>${esc(p.name)}</small></button>`).join("");
+  $("#picker").querySelectorAll("button").forEach(b => b.addEventListener("click", () => select(b.dataset.id, false)));
+}
+const COL = 150, BOX_W = 132, BOX_H = 62, LANE_H = 86, LABEL_W = 132, PAD = 14;
+function wrap(text, max) {
+  const words = text.split(" "), lines = []; let cur = "";
+  for (const w of words) { if ((cur + " " + w).trim().length > max && cur) { lines.push(cur); cur = w; } else cur = (cur + " " + w).trim(); }
+  if (cur) lines.push(cur); return lines.slice(0, 3);
+}
+function renderSwim(p, state) {
+  const lanes = LANES.filter(l => p.steps.some(s => s[0] === l));
+  const W = LABEL_W + p.steps.length * COL + PAD, H = lanes.length * LANE_H;
+  const pos = p.steps.map((s, i) => ({x: LABEL_W + i * COL + (COL - BOX_W) / 2, y: lanes.indexOf(s[0]) * LANE_H + (LANE_H - BOX_H) / 2}));
+  let svg = `<svg class="swim" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(p.tag)} build steps by layer">
+    <defs><marker id="ah-${p.id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0,0 L8,4 L0,8 z"/></marker></defs>`;
+  lanes.forEach((l, i) => {
+    svg += `<rect class="lane-bg${i % 2 ? " alt" : ""}" x="0" y="${i * LANE_H}" width="${W}" height="${LANE_H}"/>`;
+    svg += `<line class="lane-line" x1="0" x2="${W}" y1="${(i + 1) * LANE_H}" y2="${(i + 1) * LANE_H}"/>`;
+    wrap(l, 14).forEach((t, k, arr) => svg += `<text class="lane-label" x="12" y="${i * LANE_H + LANE_H / 2 + (k - (arr.length - 1) / 2) * 14 + 4}">${esc(t)}</text>`);
+  });
+  for (let i = 0; i < pos.length - 1; i++) {
+    const a = pos[i], b = pos[i + 1], x1 = a.x + BOX_W, y1 = a.y + BOX_H / 2, x2 = b.x - 2, y2 = b.y + BOX_H / 2, mx = (x1 + x2) / 2;
+    svg += `<path class="edge" marker-end="url(#ah-${p.id})" d="M${x1},${y1} H${mx} V${y2} H${x2}"/>`;
+  }
+  p.steps.forEach((s, i) => {
+    const {x, y} = pos[i], kind = s[5] ? ` kind-${s[5]}` : "", cls = i === state.i ? " current" : i < state.i ? " done" : "";
+    svg += `<g class="step${kind}${cls}" data-i="${i}" tabindex="0" role="button" aria-label="Step ${i + 1}: ${esc(s[1])}">
+      <rect x="${x}" y="${y}" width="${BOX_W}" height="${BOX_H}" rx="8"/>
+      <text class="num" x="${x + 9}" y="${y + 16}">${i + 1}</text>
+      ${wrap(s[1], 16).map((t, k) => `<text x="${x + 24}" y="${y + 17 + k * 15}">${esc(t)}</text>`).join("")}</g>`;
+  });
+  return svg + "</svg>";
+}
+function stepDetail(p, i) {
+  const s = p.steps[i], kind = {fail: "Where it failed", fix: "A fix", plan: "Planned"}[s[5]] || "";
+  return `<div class="detail" aria-live="polite"><span class="eyebrow">Step ${i + 1} of ${p.steps.length} · ${esc(s[0])}${kind ? " · " + kind : ""}</span>
+    <h3>${esc(s[1])}</h3><div class="kv"><b>What</b><span>${esc(s[2])}</span><b>Why</b><span>${esc(s[3])}</span><b>Where</b><span>${fileLink(s[4])}</span></div></div>`;
+}
+const state = {id: PHASES[0].id, i: 0};
+function renderPhase() {
+  const p = PHASES.find(x => x.id === state.id);
+  const scqa = ["Situation", "Complication", "Question", "Answer"].map((h, k) => `<div><b>${h}</b><p>${esc(p.scqa[k])}</p></div>`).join("");
+  const res = p.results.map(r => `<tr><td>${esc(r[0])}</td><td class="mono">${esc(r[1])}</td><td class="mono">${esc(r[2])}</td><td>${
+    r[3] === "ok" ? '<span class="verdict-ok">pass</span>' : r[3] === "no" ? '<span class="verdict-no">fail</span>' : r[3] === "wait" ? '<span class="verdict-wait">pending</span>' : '<span class="muted">info</span>'}</td></tr>`).join("");
+  const obs = p.obstacles.length ? `<div class="part box"><span class="eyebrow">Obstacles · symptom → root cause → fix → prevention</span>
+    <div class="scroll"><table class="obst"><thead><tr><th>Symptom</th><th>Root cause</th><th>Fix</th><th>Prevention</th></tr></thead><tbody>${
+    p.obstacles.map(o => `<tr>${o.map((c, k) => `<td data-label="${["Symptom", "Root cause", "Fix", "Prevention"][k]}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div></div>` : "";
+  $("#phase").innerHTML = `
+    <div class="part ph-top"><div class="phase-head"><h2>${esc(p.tag)} · ${esc(p.name)}</h2>${chip(p.verdict)}<span class="dates">${esc(p.dates)}</span></div>
+    <div class="scqa">${scqa}</div></div>
+    <div class="part lanewrap">
+      <div class="walk"><span class="eyebrow">Build steps</span>
+        <button type="button" id="prev">◀ Prev</button><button type="button" class="primary" id="next">Next ▶</button>
+        <span class="pos" id="pos"></span></div>
+      <div class="scroll" id="swim"></div>
+      <div class="lane-legend"><span><i></i>step</span><span><i class="fail"></i>where it failed</span><span><i class="fix"></i>a fix</span><span><i class="plan"></i>planned</span><span>Hover a step for a summary; click or use Next for details.</span></div>
+      <div id="detail"></div>
+    </div>
+    <div class="part two">
+      <div class="box"><span class="eyebrow">Result vs gate (set before the work)</span>
+        <div class="scroll"><table><thead><tr><th>Check</th><th>Target</th><th>Result</th><th></th></tr></thead><tbody>${res}</tbody></table></div></div>
+      <div class="box"><span class="eyebrow">Key decisions</span>${p.decisions.length ? `<ul class="points">${p.decisions.map(d => `<li>${esc(d[0])} · ${adrLink(d[1])}</li>`).join("")}</ul>` : '<p class="muted">Decided in the phase\'s ADR, before the work.</p>'}
+        ${p.lessons.length ? `<span class="eyebrow">Lessons learned</span><ul class="points">${p.lessons.map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}</div>
+    </div>
+    ${obs}
+    ${p.star ? `<div class="part box"><span class="eyebrow">STAR talking point</span><p class="star">“${esc(p.star)}”</p></div>` : ""}`;
+  $("#prev").addEventListener("click", () => step(-1));
+  $("#next").addEventListener("click", () => step(1));
+  drawSteps();
+}
+function drawSteps() {
+  const p = PHASES.find(x => x.id === state.id);
+  $("#swim").innerHTML = renderSwim(p, state);
+  $("#detail").innerHTML = stepDetail(p, state.i);
+  $("#pos").textContent = `Step ${state.i + 1} of ${p.steps.length}`;
+  $("#prev").disabled = state.i === 0; $("#next").disabled = state.i === p.steps.length - 1;
+  $("#swim").querySelectorAll("g.step").forEach(g => {
+    const s = p.steps[+g.dataset.i];
+    const go = () => { state.i = +g.dataset.i; drawSteps(); $(`#swim g.step[data-i="${state.i}"]`).focus({preventScroll: true}); };
+    g.addEventListener("click", go);
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    g.addEventListener("mousemove", e => showTip(e, `<b>${+g.dataset.i + 1}. ${esc(s[1])}</b>${esc(s[2])}`));
+    g.addEventListener("mouseleave", hideTip);
+    g.addEventListener("focus", () => { const r = g.getBoundingClientRect(); showTip({clientX: r.left, clientY: r.bottom}, `<b>${+g.dataset.i + 1}. ${esc(s[1])}</b>${esc(s[2])}`); });
+    g.addEventListener("blur", hideTip);
+  });
+  const cur = $("#swim g.step.current");
+  if (cur) { const box = $("#swim"), r = cur.getBoundingClientRect(), b = box.getBoundingClientRect();
+    if (r.left < b.left || r.right > b.right) box.scrollLeft += r.left - b.left - 40; }
+}
+function step(d) { const p = PHASES.find(x => x.id === state.id); state.i = Math.max(0, Math.min(p.steps.length - 1, state.i + d)); hideTip(); drawSteps(); }
+function select(id, scroll) {
+  state.id = id; state.i = 0; hideTip();
+  document.querySelectorAll("#picker button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.id === id)));
+  document.querySelectorAll("#map th.ph, #map td.cell").forEach(el => el.classList.toggle("on", el.dataset.id === id));
+  renderPhase();
+  try { history.replaceState(null, "", "#" + id); } catch (e) { /* sandboxed viewers */ }
+  if (scroll) $("#h-phase").scrollIntoView({behavior: "smooth", block: "start"});
+}
+document.addEventListener("keydown", e => {
+  if (e.target.closest("input, textarea")) return;
+  if (e.key === "ArrowRight") step(1); else if (e.key === "ArrowLeft") step(-1);
+});
+addEventListener("scroll", hideTip, {passive: true});
+$("#updated").textContent = P.updated;
+renderMap(); renderPicker();
+const start = (location.hash || "").slice(1);
+select(PHASES.some(p => p.id === start) ? start : PHASES[0].id, false);
+</script>

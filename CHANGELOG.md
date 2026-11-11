@@ -2,6 +2,14 @@
 
 Newest first. Each entry uses STAR (Situation, Task, Action, Result) so it can be told as a story.
 
+## [8.1.0] — 2026-11-11 — Results page and technical walkthrough (R3, R14), browser tests and gated Pages (R19)
+**Files:** docs/index.html (new), docs/build.html (new), docs/assets/preview*.png (new), tests/browser/ (new), .github/workflows/ci.yml, docs/brief.yaml, README.md
+- **Situation:** The fair benchmark lived only in the README and ADR-008; the dashboard still shows the old one.
+- **Task:** A results page readable in two minutes and a phase-by-phase walkthrough, tested in a real browser before publishing.
+- **Action:** Results page with the brief, problem, data, approach, a day-by-day what-if (Chronos-2 vs Holt-Winters on all 145 test days) and the ranking; walkthrough of six phases including two failures; share previews; hover and walkthrough tests in CI; Pages deploy only after tests pass.
+- **Result:** 186 results-page and 210 walkthrough checks pass; the page is 4.7 screens on desktop.
+- **Talking point:** "Drag through any of 145 test days and see how far a free pretrained model and the best trained model were from what happened."
+
 ## [8.0.0] — 2026-11-11 — Fair rolling benchmark: zero-shot foundation models beat every trained model (ADR-008)
 **Files:** docs/adr/ADR-008 (new), src/evaluation/rolling.py, scripts/rolling_trained.py, scripts/rolling_foundation.py, scripts/rolling_report.py, scripts/rolling_latency.py, tests/test_rolling.py, data/forecasts/ETT/rolling/, docs/brief.yaml, scripts/brief.py, README.md, docs/PRD.md
 - **Situation:** The headline benchmark gave ML the true past values at every step while other models forecast 3,484 hours in one go, so it compared information, not skill. Pretrained forecasting models had arrived.
