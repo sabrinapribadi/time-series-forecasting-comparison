@@ -626,8 +626,9 @@ sel_df = metrics_df.loc[metrics_df.index.isin(selected_keys)].copy()
 # Tab layout
 # ---------------------------------------------------------------------------
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "Benchmark Results",
+tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "Fair benchmark (ADR-008)",
+    "Original benchmark (not like-for-like)",
     "Forecast Gallery",
     "Model Inspector",
     "Data Explorer",
@@ -636,13 +637,83 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "RL Selector",
 ])
 
+
 # ===========================================================================
-# TAB 1 — Benchmark Results
+# TAB 0 — Fair rolling benchmark (ADR-008): same history for every model
+# ===========================================================================
+
+ROLLING_DIR = FORECAST_DIR / "rolling"
+FAIR_NAMES = {"chronos2": "Chronos-2", "moirai2": "Moirai-2.0", "timesfm25": "TimesFM-2.5", "holt_winters": "Holt-Winters",
+              "nbeats": "N-BEATS", "random_forest": "Random Forest", "seasonal_naive_24": "Same hour yesterday", "arima": "ARIMA",
+              "catboost": "CatBoost", "xgboost": "XGBoost", "lightgbm": "LightGBM", "prophet": "Prophet",
+              "seasonal_naive_168": "Same hour last week", "lstm": "LSTM"}
+FAIR_KIND = {"foundation": ("Zero-shot", "#0f6e74"), "trained": ("Trained", "#b06a1f"), "baseline": ("Simple rule", "#8a8f96")}
+
+
+@st.cache_data
+def load_fair() -> tuple[dict, dict, dict]:
+    summary = json.loads((ROLLING_DIR / "summary.json").read_text())
+    ch = json.loads((ROLLING_DIR / "chronos2.json").read_text())["test"]
+    hw = json.loads((ROLLING_DIR / "holt_winters.json").read_text())["test"]
+    return summary, ch, hw
+
+
+with tab0:
+    st.markdown("## Fair benchmark: same history for every model")
+    st.markdown(
+        '<div class="context-card">'
+        "Every model forecasts the next 24 hours from earlier readings only, at 145 daily start points (Feb–Jun 2018). "
+        "Three zero-shot foundation models run with no training on this data. The pass mark was set before any run (ADR-008)."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    if not (ROLLING_DIR / "summary.json").exists():
+        st.info("Fair benchmark results not found.")
+    else:
+        fs, fch, fhw = load_fair()
+        fm, fg = fs["models"], fs["gate"]
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Typical hourly miss, Chronos-2", f"{fm['chronos2']['test']['mae']:.2f} °C",
+                  help=f"Best trained model, Holt-Winters: {fm['holt_winters']['test']['mae']:.2f} °C")
+        k2.metric("Error vs best trained model", f"{100 * fg['foundation_lower_by']:.0f}% lower", help="Bar set in advance: 5%")
+        k3.metric("Time per 24-hour forecast", f"{fs['latency_idle']['models']['chronos2']['p50_ms'] / 1000:.2f} s", help="Laptop CPU, no GPU")
+        st.caption("MASE: average error ÷ the error of \"same hour yesterday\" on the training data. Below 1 beats it.")
+        uni = sorted([k for k in fm if fm[k]["track"] == "univariate"], key=lambda k: fm[k]["test"]["mase"], reverse=True)
+        fig = go.Figure(go.Bar(
+            x=[fm[k]["test"]["mase"] for k in uni], y=[FAIR_NAMES[k] for k in uni], orientation="h",
+            marker_color=[FAIR_KIND[fm[k]["group"]][1] for k in uni],
+            customdata=[[FAIR_KIND[fm[k]["group"]][0], fm[k]["test"]["mae"], fm[k]["clean_tail"]["mase"]] for k in uni],
+            hovertemplate="<b>%{y}</b><br>%{customdata[0]}<br>Test MASE %{x:.3f}<br>Typical miss %{customdata[1]:.2f} °C<br>"
+                          "Last 41 days %{customdata[2]:.3f}<extra></extra>"))
+        fig.add_vline(x=1, line_dash="dash", line_color="#8a8f96", annotation_text="same hour yesterday")
+        fig.update_layout(height=460, margin=dict(l=10, r=10, t=10, b=10), xaxis_title="Test MASE (lower is better)")
+        st.plotly_chart(fig, use_container_width=True)
+        ett = load_ett_data("h1")
+        if ett is not None:
+            day = st.slider("Test day", 0, len(fch["origins"]) - 1, 72)
+            o = fch["origins"][day]
+            seg = ett.iloc[o:o + 24]
+            fig2 = go.Figure()
+            fig2.add_scatter(x=seg["date"], y=seg["OT"], name="Actual", line=dict(color="#1d1f21", width=2.5))
+            fig2.add_scatter(x=seg["date"], y=fch["y_pred"][day], name="Chronos-2 (zero-shot)", line=dict(color="#0f6e74", dash="dash"))
+            fig2.add_scatter(x=seg["date"], y=fhw["y_pred"][day], name="Holt-Winters (best trained)", line=dict(color="#b06a1f", dash="dash"))
+            fig2.update_layout(height=340, margin=dict(l=10, r=10, t=10, b=10), yaxis_title="Oil temperature (°C)", hovermode="x unified")
+            st.plotly_chart(fig2, use_container_width=True)
+        st.markdown(
+            f"- **Pass mark met:** {100 * fg['foundation_lower_by']:.1f}% lower error (bar 5%), Diebold–Mariano p = {fg['dm_hln']['p']:.0e}, "
+            f"and lower on the last 41 days ({fg['clean_tail_mase']['chronos2']:.3f} vs {fg['clean_tail_mase']['holt_winters']:.3f}).\n"
+            "- **Why the original tab differs:** it gave ML the true past values at every hour; without them, ML errors grow 3.3–3.5×.\n"
+            "- **Dropped:** Transformer and TFT (CPU retraining exceeded 2 hours; logged in ADR-008)."
+        )
+
+# ===========================================================================
+# TAB 1 — Original benchmark (oracle lags, not like-for-like)
 # ===========================================================================
 
 with tab1:
     # Header
-    st.markdown("## Benchmark Results")
+    st.markdown("## Original benchmark (not like-for-like)")
+    st.warning("Kept for the record. ML models here received the true past values at every hour (ADR-005); see the Fair benchmark tab.")
     st.markdown(
         '<div class="context-card">'
         "All 11 models trained on <strong>ETTh1</strong> (17,420 hourly observations, 2016–2018). "

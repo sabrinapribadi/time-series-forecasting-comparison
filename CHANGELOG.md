@@ -2,6 +2,14 @@
 
 Newest first. Each entry uses STAR (Situation, Task, Action, Result) so it can be told as a story.
 
+## [8.2.0] — 2026-11-11 — Dashboard leads with the fair benchmark
+**Files:** src/ui/dashboard.py, docs/brief.yaml, README.md, docs/index.html, docs/build.html
+- **Situation:** The live dashboard still opened on the original, not like-for-like benchmark.
+- **Task:** Make the first tab the fair result without losing the original.
+- **Action:** New first tab: headline numbers, ranking with hover details, and a day slider of Chronos-2 vs Holt-Winters vs actual; the old tab renamed and flagged.
+- **Result:** The app's first screen matches the README and pages; checked with Streamlit's test harness (no exceptions).
+- **Talking point:** "Every surface now leads with the same fair result."
+
 ## [8.1.0] — 2026-11-11 — Results page and technical walkthrough (R3, R14), browser tests and gated Pages (R19)
 **Files:** docs/index.html (new), docs/build.html (new), docs/assets/preview*.png (new), tests/browser/ (new), .github/workflows/ci.yml, docs/brief.yaml, README.md
 - **Situation:** The fair benchmark lived only in the README and ADR-008; the dashboard still shows the old one.
