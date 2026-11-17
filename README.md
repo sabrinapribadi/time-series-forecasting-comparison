@@ -494,18 +494,13 @@ The **Model Inspector** tab includes an AI Explainability button powered by GPT-
 
 ### Ask AI (RAG)
 
-The **Ask AI** tab uses a keyword-based retrieval system over a pre-built knowledge base of benchmark results, model descriptions, metric formulas, and feature engineering notes. Retrieved chunks are sent to GPT-4o mini as context for grounded, cited answers.
-
-```toml
-# .streamlit/secrets.toml (gitignored)
-OPENAI_API_KEY = "sk-..."
-```
+The **Ask AI** tab uses keyword retrieval over a knowledge base built from committed files (`src/ui/ask_ai.py`): the fair rolling benchmark first, the original table labelled not like-for-like, model descriptions and metric formulas. It opens in **replay** mode (recorded answers, free); a viewer can switch to **live** and paste their own OpenAI key, kept in their session only. The app holds no key of ours.
 
 ### Streamlit Cloud Deployment
 
 **Live app:** https://time-series-forecasting-comparison-q74ppg2ggcaqxywkqwqxsw.streamlit.app/
 
-Use `requirements-streamlit.txt` (5 lightweight deps, no torch/darts/catboost) and add `OPENAI_API_KEY` in the Streamlit Cloud Secrets panel.
+Streamlit Cloud installs the root `requirements.txt` (dashboard runtime only, no torch/darts/catboost). No secrets are needed: Ask AI replays recorded answers, and live answers use the viewer's own key.
 
 ```
 Main file: src/ui/dashboard.py
