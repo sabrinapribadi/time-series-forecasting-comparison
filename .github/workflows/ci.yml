@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12", cache: pip}
       # dashboard runtime only; training needs torch and darts, the tests check the committed forecasts
-      - run: pip install -r requirements-streamlit.txt pytest ruff pyyaml
+      - run: pip install -r requirements.txt pytest ruff        # the deployed app's own requirements (R26: AppTest runs what Streamlit Cloud runs)
       - run: ruff check --select E9,F63,F7,F82 src scripts tests
       - name: Brief in sync with docs/brief.yaml (R22)
         run: python scripts/brief.py --check

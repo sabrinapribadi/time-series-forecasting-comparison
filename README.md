@@ -511,6 +511,13 @@ Use `requirements-streamlit.txt` (5 lightweight deps, no torch/darts/catboost) a
 Main file: src/ui/dashboard.py
 ```
 
+
+**R26 update (2026-11-18):**
+- **First screen:** the fair benchmark's results from `rolling/summary.json` (Chronos-2 MASE 0.478 vs Holt-Winters 0.592; Diebold–Mariano p ≈ 1e-07 over 145 forecasts), the brief, and the free-tier note (the app sleeps after 12 hours; the results page is always on).
+- **Ask AI, replay by default:** 7 answers recorded from the assistant (`src/ui/replays_ask_ai.json`, made by `scripts/record_app_replays.py`), each with its retrieved sources, a number check (7 of 7 pass), cost and time. The knowledge base now leads with the fair benchmark and labels the original table not like-for-like.
+- **Live with your own key:** a viewer can paste their own OpenAI key in Ask AI; it also unlocks "Explain performance" in the Model Inspector. It stays in their session only and is never stored or logged. The app reads no key of ours (a test fails if `st.secrets` or `OPENAI_API_KEY` appears in the dashboard).
+- **Tests:** `tests/test_streamlit_app.py` (AppTest) runs in CI on the app's own `requirements.txt`.
+
 ## Tech Stack
 
 | Layer | Library / Tool |

@@ -1,0 +1,344 @@
+{
+ "recorded_utc": "2026-11-17 18:06",
+ "model": "gpt-4o-mini",
+ "source": "the benchmark's committed results (fair rolling benchmark first)",
+ "runs": [
+  {
+   "question": "Which model should I use for production?",
+   "answer": "For production, the recommended model is Chronos-2 (foundation), which is the champion of its group with a test MASE of 0.478. It outperforms other models significantly and is designed for zero-shot forecasting. The alternative champion, Holt-Winters (trained), has a test MASE of 0.592 but is less effective compared to Chronos-2. Therefore, Chronos-2 is the best choice for reliable performance in forecasting oil temperature [fair_benchmark].",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": true
+    },
+    {
+     "id": "family_deep_learning",
+     "text": "Deep Learning model family:\nLSTM: Recurrent neural network with input, forget, and output gates to mitigate vanishing gradients. Trained with 96-step input window, 24-step direct output head. Evaluated with rolling-window oracle (context refreshed with true OT every 24 steps). Strengths: Captures long-range temporal dependencies, no manual feature engineering. Weaknesses: Requires significant training time (100+ epochs for competitive results); here only 30 epochs — undertrained.\nTransformer: Replaces recurrence with scaled dot-product attention, enabling parallel computation over the full input sequence. Captures global dependencies without distance bias. Strengths: Parallelisable training, captures global patterns, strong on long sequences. Weaknesses: O(n^2) attention cost; undertrained here (5 epochs); needs GPU for competitive results.\nN-BEATS: Pure MLP stack without convolution or attention. Each block produces a backcast (residual) and forecast (contribution). Generic or interpretable (trend/seasonality) basis functions. Strengths: No inductive bias, purely data-driven, interpretable decomposition option. Weaknesses: Needs many training epochs; undertrained here (30 epochs); no native multivariate support.\nTFT: Combines variable selection networks, gated residual networks, and multi-head self-attention. Designed for multi-horizon with interpretable attention. Requires future covariates — approximated here with a relative time index. Strengths: Multi-horizon, variable importance, interpretable attention over past steps. Weaknesses: Needs real future covariates (load schedule) for best performance; relative index is a poor substitute; undertrained (30 epochs).",
+     "cited": false
+    },
+    {
+     "id": "family_ml",
+     "text": "ML model family:\nRandom Forest: Ensemble of B decision trees trained on bootstrap samples with random feature subsets. Variance reduction through averaging. Uses oracle lag features (OT_lag_1/2/24) as input. Strengths: Robust to outliers, handles non-linearity, no scaling needed, parallelisable. Weaknesses: Cannot extrapolate beyond training range, requires feature engineering, no explicit sequence modelling.\nXGBoost: Sequential ensemble of regression trees fitted by minimising a regularised second-order approximation of the loss. Features L1/L2 regularisation, column/row subsampling. Strengths: High accuracy, built-in regularisation, efficient parallel tree construction. Weaknesses: More hyperparameters than RF, can overfit without tuning, no sequence awareness.\nLightGBM: Same gradient boosting objective as XGBoost but uses histogram binning, leaf-wise (best-first) tree growth, GOSS sampling, and EFB bundling for 10-100x speedup on large data. Fixed regularized defaults (reg_alpha=0.1, reg_lambda=0.1). Strengths: Fastest gradient boosting, memory efficient, strong regularisation, large datasets. Weaknesses: Leaf-wise growth can overfit on small datasets; less interpretable than level-wise.\nCatBoost: Uses ordered boosting (prevents target leakage) and symmetric oblivious trees (same split at each depth level). Particularly strong on datasets with categorical features. Strengths: Ordered boosting reduces overfitting, fast inference via lookup tables, handles categoricals. Weaknesses: Slower training than LightGBM on purely numerical data.",
+     "cited": false
+    },
+    {
+     "id": "family_statistical",
+     "text": "Statistical model family:\nHolt-Winters: Decomposes the series into level, trend, and seasonal components. Each component is updated with exponential smoothing coefficients (alpha, beta, gamma). Suitable for series with stable seasonality. Strengths: Fast, interpretable, no feature engineering, handles seasonality explicitly. Weaknesses: Assumes fixed seasonality structure; degrades severely over long horizons (3,484-step test); not suitable for multivariate input.\nARIMA: Combines autoregression (AR), differencing for stationarity (I), and moving-average error correction (MA). Order (p,d,q) selected automatically via ADF stationarity test. Strengths: Theoretically grounded, handles non-stationarity, well-studied. Weaknesses: Linear; assumes stationarity after differencing; no native seasonality without SARIMA; degrades over long horizons.\nProphet: Facebook's decomposable time series model: y(t) = trend + seasonality + holidays + noise. Trend uses piecewise linear changepoints. Seasonality uses Fourier series. Strengths: Handles missing data and outliers, automatic changepoint detection, easy to tune. Weaknesses: Designed for daily data with weekly/yearly patterns; hourly OT forecasting is outside its intended domain; long-horizon degradation.",
+     "cited": false
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1854,
+    "cached_input": 0,
+    "output": 102
+   },
+   "cost_usd": 0.0003393,
+   "latency_ms": 2501.1
+  },
+  {
+   "question": "Did the zero-shot foundation model beat the trained models?",
+   "answer": "Yes, the zero-shot foundation model, Chronos-2, achieved a test MASE of 0.478, which is lower than the best-trained model, Holt-Winters, with a test MASE of 0.592. This indicates that the foundation model outperformed the trained models in the fair rolling benchmark [fair_benchmark].",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": true
+    },
+    {
+     "id": "family_deep_learning",
+     "text": "Deep Learning model family:\nLSTM: Recurrent neural network with input, forget, and output gates to mitigate vanishing gradients. Trained with 96-step input window, 24-step direct output head. Evaluated with rolling-window oracle (context refreshed with true OT every 24 steps). Strengths: Captures long-range temporal dependencies, no manual feature engineering. Weaknesses: Requires significant training time (100+ epochs for competitive results); here only 30 epochs — undertrained.\nTransformer: Replaces recurrence with scaled dot-product attention, enabling parallel computation over the full input sequence. Captures global dependencies without distance bias. Strengths: Parallelisable training, captures global patterns, strong on long sequences. Weaknesses: O(n^2) attention cost; undertrained here (5 epochs); needs GPU for competitive results.\nN-BEATS: Pure MLP stack without convolution or attention. Each block produces a backcast (residual) and forecast (contribution). Generic or interpretable (trend/seasonality) basis functions. Strengths: No inductive bias, purely data-driven, interpretable decomposition option. Weaknesses: Needs many training epochs; undertrained here (30 epochs); no native multivariate support.\nTFT: Combines variable selection networks, gated residual networks, and multi-head self-attention. Designed for multi-horizon with interpretable attention. Requires future covariates — approximated here with a relative time index. Strengths: Multi-horizon, variable importance, interpretable attention over past steps. Weaknesses: Needs real future covariates (load schedule) for best performance; relative index is a poor substitute; undertrained (30 epochs).",
+     "cited": false
+    },
+    {
+     "id": "fair_vs_original",
+     "text": "Why the original benchmark is not like-for-like: in the original single split, machine-learning models received lag features holding the true oil temperature of the previous hours at every test step (look-ahead), while statistical and deep models forecast the whole test period in one shot. Original RMSE vs fair rolling RMSE (°C): ARIMA 8.77 vs 2.33; CatBoost 0.74 vs 2.54; Holt-Winters 7.85 vs 1.91; LightGBM 0.75 vs 2.62; LSTM 5.33 vs 5.28; N-BEATS 4.36 vs 2.19; Prophet 4.03 vs 2.89; Random Forest 0.70 vs 2.31; XGBoost 0.76 vs 2.63. The fair benchmark gives every model the same history at each origin.",
+     "cited": false
+    },
+    {
+     "id": "family_statistical",
+     "text": "Statistical model family:\nHolt-Winters: Decomposes the series into level, trend, and seasonal components. Each component is updated with exponential smoothing coefficients (alpha, beta, gamma). Suitable for series with stable seasonality. Strengths: Fast, interpretable, no feature engineering, handles seasonality explicitly. Weaknesses: Assumes fixed seasonality structure; degrades severely over long horizons (3,484-step test); not suitable for multivariate input.\nARIMA: Combines autoregression (AR), differencing for stationarity (I), and moving-average error correction (MA). Order (p,d,q) selected automatically via ADF stationarity test. Strengths: Theoretically grounded, handles non-stationarity, well-studied. Weaknesses: Linear; assumes stationarity after differencing; no native seasonality without SARIMA; degrades over long horizons.\nProphet: Facebook's decomposable time series model: y(t) = trend + seasonality + holidays + noise. Trend uses piecewise linear changepoints. Seasonality uses Fourier series. Strengths: Handles missing data and outliers, automatic changepoint detection, easy to tune. Weaknesses: Designed for daily data with weekly/yearly patterns; hourly OT forecasting is outside its intended domain; long-horizon degradation.",
+     "cited": false
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1717,
+    "cached_input": 0,
+    "output": 71
+   },
+   "cost_usd": 0.00030015,
+   "latency_ms": 2592.7
+  },
+  {
+   "question": "Why did the machine-learning models look so good in the original benchmark?",
+   "answer": "The machine-learning models appeared to perform well in the original benchmark because they received lag features that included the true previous values of oil temperature at every test step, a practice known as look-ahead. This gave them an advantage over statistical and deep models, which forecasted the entire test period in one shot without access to these true values. As a result, the original benchmark is not like-for-like and should not be used to rank models [fair_vs_original].",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "fair_vs_original",
+     "text": "Why the original benchmark is not like-for-like: in the original single split, machine-learning models received lag features holding the true oil temperature of the previous hours at every test step (look-ahead), while statistical and deep models forecast the whole test period in one shot. Original RMSE vs fair rolling RMSE (°C): ARIMA 8.77 vs 2.33; CatBoost 0.74 vs 2.54; Holt-Winters 7.85 vs 1.91; LightGBM 0.75 vs 2.62; LSTM 5.33 vs 5.28; N-BEATS 4.36 vs 2.19; Prophet 4.03 vs 2.89; Random Forest 0.70 vs 2.31; XGBoost 0.76 vs 2.63. The fair benchmark gives every model the same history at each origin.",
+     "cited": true
+    },
+    {
+     "id": "mase",
+     "text": "MASE (mean absolute scaled error) is the primary metric (ADR-008): average absolute error divided by the in-sample error of 'same hour yesterday' on the training data (2.361 °C). Below 1 beats that simple rule. It is comparable across origins and was fixed before any test score was read.",
+     "cited": false
+    },
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": false
+    },
+    {
+     "id": "original_benchmark",
+     "text": "ORIGINAL single-split results (NOT like-for-like; do not use to rank models):\n  ARIMA (Statistical): RMSE=8.7745, R2=-5.4833\n  CatBoost (ML): RMSE=0.7443, R2=0.9533\n  Holt-Winters (Statistical): RMSE=7.8509, R2=-4.1903\n  LightGBM (ML): RMSE=0.7548, R2=0.9520\n  LSTM (Deep Learning): RMSE=5.3317, R2=-1.3938\n  N-BEATS (Deep Learning): RMSE=4.3579, R2=-0.5992\n  Prophet (Statistical): RMSE=4.0300, R2=-0.3676\n  Random Forest (ML): RMSE=0.7038, R2=0.9583\n  TFT (Deep Learning): RMSE=4.2136, R2=-0.4951\n  Transformer (Deep Learning): RMSE=3.5250, R2=-0.0464\n  XGBoost (ML): RMSE=0.7559, R2=0.9519",
+     "cited": false
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1441,
+    "cached_input": 0,
+    "output": 93
+   },
+   "cost_usd": 0.00027195,
+   "latency_ms": 3734.0
+  },
+  {
+   "question": "How does LSTM compare with Holt-Winters in the fair benchmark?",
+   "answer": "In the fair benchmark (ADR-008), LSTM has a test MASE of 1.864, RMSE of 5.281 °C, and MAE of 4.399 °C, while Holt-Winters has a test MASE of 0.592, RMSE of 1.910 °C, and MAE of 1.397 °C. Holt-Winters outperforms LSTM significantly in all metrics, indicating it is a more effective model for this forecasting task [fair_benchmark].",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": true
+    },
+    {
+     "id": "fair_vs_original",
+     "text": "Why the original benchmark is not like-for-like: in the original single split, machine-learning models received lag features holding the true oil temperature of the previous hours at every test step (look-ahead), while statistical and deep models forecast the whole test period in one shot. Original RMSE vs fair rolling RMSE (°C): ARIMA 8.77 vs 2.33; CatBoost 0.74 vs 2.54; Holt-Winters 7.85 vs 1.91; LightGBM 0.75 vs 2.62; LSTM 5.33 vs 5.28; N-BEATS 4.36 vs 2.19; Prophet 4.03 vs 2.89; Random Forest 0.70 vs 2.31; XGBoost 0.76 vs 2.63. The fair benchmark gives every model the same history at each origin.",
+     "cited": false
+    },
+    {
+     "id": "family_deep_learning",
+     "text": "Deep Learning model family:\nLSTM: Recurrent neural network with input, forget, and output gates to mitigate vanishing gradients. Trained with 96-step input window, 24-step direct output head. Evaluated with rolling-window oracle (context refreshed with true OT every 24 steps). Strengths: Captures long-range temporal dependencies, no manual feature engineering. Weaknesses: Requires significant training time (100+ epochs for competitive results); here only 30 epochs — undertrained.\nTransformer: Replaces recurrence with scaled dot-product attention, enabling parallel computation over the full input sequence. Captures global dependencies without distance bias. Strengths: Parallelisable training, captures global patterns, strong on long sequences. Weaknesses: O(n^2) attention cost; undertrained here (5 epochs); needs GPU for competitive results.\nN-BEATS: Pure MLP stack without convolution or attention. Each block produces a backcast (residual) and forecast (contribution). Generic or interpretable (trend/seasonality) basis functions. Strengths: No inductive bias, purely data-driven, interpretable decomposition option. Weaknesses: Needs many training epochs; undertrained here (30 epochs); no native multivariate support.\nTFT: Combines variable selection networks, gated residual networks, and multi-head self-attention. Designed for multi-horizon with interpretable attention. Requires future covariates — approximated here with a relative time index. Strengths: Multi-horizon, variable importance, interpretable attention over past steps. Weaknesses: Needs real future covariates (load schedule) for best performance; relative index is a poor substitute; undertrained (30 epochs).",
+     "cited": false
+    },
+    {
+     "id": "family_statistical",
+     "text": "Statistical model family:\nHolt-Winters: Decomposes the series into level, trend, and seasonal components. Each component is updated with exponential smoothing coefficients (alpha, beta, gamma). Suitable for series with stable seasonality. Strengths: Fast, interpretable, no feature engineering, handles seasonality explicitly. Weaknesses: Assumes fixed seasonality structure; degrades severely over long horizons (3,484-step test); not suitable for multivariate input.\nARIMA: Combines autoregression (AR), differencing for stationarity (I), and moving-average error correction (MA). Order (p,d,q) selected automatically via ADF stationarity test. Strengths: Theoretically grounded, handles non-stationarity, well-studied. Weaknesses: Linear; assumes stationarity after differencing; no native seasonality without SARIMA; degrades over long horizons.\nProphet: Facebook's decomposable time series model: y(t) = trend + seasonality + holidays + noise. Trend uses piecewise linear changepoints. Seasonality uses Fourier series. Strengths: Handles missing data and outliers, automatic changepoint detection, easy to tune. Weaknesses: Designed for daily data with weekly/yearly patterns; hourly OT forecasting is outside its intended domain; long-horizon degradation.",
+     "cited": false
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1721,
+    "cached_input": 0,
+    "output": 111
+   },
+   "cost_usd": 0.00032475,
+   "latency_ms": 2827.5
+  },
+  {
+   "question": "What does MASE mean and why is it the main metric?",
+   "answer": "MASE (Mean Absolute Scaled Error) is a scale-free metric that measures the average absolute error of a forecasting model relative to a naive baseline, specifically the 'same hour yesterday' method. It is calculated as the mean absolute error (MAE) divided by the in-sample error of the naive method. A MASE value less than 1 indicates that the model outperforms the naive forecasting approach. It is the primary metric because it allows for comparability across different origins and forecasting models, making it a robust choice for evaluating performance in the ETT forecasting benchmark [mase][metric_mase].",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": false
+    },
+    {
+     "id": "mase",
+     "text": "MASE (mean absolute scaled error) is the primary metric (ADR-008): average absolute error divided by the in-sample error of 'same hour yesterday' on the training data (2.361 °C). Below 1 beats that simple rule. It is comparable across origins and was fixed before any test score was read.",
+     "cited": true
+    },
+    {
+     "id": "fair_vs_original",
+     "text": "Why the original benchmark is not like-for-like: in the original single split, machine-learning models received lag features holding the true oil temperature of the previous hours at every test step (look-ahead), while statistical and deep models forecast the whole test period in one shot. Original RMSE vs fair rolling RMSE (°C): ARIMA 8.77 vs 2.33; CatBoost 0.74 vs 2.54; Holt-Winters 7.85 vs 1.91; LightGBM 0.75 vs 2.62; LSTM 5.33 vs 5.28; N-BEATS 4.36 vs 2.19; Prophet 4.03 vs 2.89; Random Forest 0.70 vs 2.31; XGBoost 0.76 vs 2.63. The fair benchmark gives every model the same history at each origin.",
+     "cited": false
+    },
+    {
+     "id": "metric_mase",
+     "text": "Mean Absolute Scaled Error (MASE): Scale-free metric relative to the in-sample naive (random walk) baseline. MASE < 1 means the model beats naive forecasting. Comparable across ETT variants. Formula: MAE / mean(|y_train[t] - y_train[t-1]|). Unit: —.",
+     "cited": true
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1236,
+    "cached_input": 0,
+    "output": 124
+   },
+   "cost_usd": 0.0002598,
+   "latency_ms": 3147.5
+  },
+  {
+   "question": "What is the ETT dataset?",
+   "answer": "The ETT (Electricity Transformer Temperature) dataset consists of hourly readings with 17,420 rows collected from 2016 to 2018. The target variable is the transformer's oil temperature in °C, and it includes six load columns: HUFL, HULL, MUFL, MULL, LUFL, and LULL. The dataset is sourced from github.com/zhouhaoyi/ETDataset and is licensed under MIT. It was introduced by Zhou et al. in their AAAI 2021 paper on the Informer model. [dataset_overview]",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "dataset_overview",
+     "text": "ETT (Electricity Transformer Temperature), ETTh1: hourly readings, 17,420 rows, 2016–2018. Target OT is the transformer's oil temperature in °C; six load columns (HUFL, HULL, MUFL, MULL, LUFL, LULL). Source: github.com/zhouhaoyi/ETDataset (MIT licence); Zhou et al., AAAI 2021 (Informer).",
+     "cited": true
+    },
+    {
+     "id": "fair_vs_original",
+     "text": "Why the original benchmark is not like-for-like: in the original single split, machine-learning models received lag features holding the true oil temperature of the previous hours at every test step (look-ahead), while statistical and deep models forecast the whole test period in one shot. Original RMSE vs fair rolling RMSE (°C): ARIMA 8.77 vs 2.33; CatBoost 0.74 vs 2.54; Holt-Winters 7.85 vs 1.91; LightGBM 0.75 vs 2.62; LSTM 5.33 vs 5.28; N-BEATS 4.36 vs 2.19; Prophet 4.03 vs 2.89; Random Forest 0.70 vs 2.31; XGBoost 0.76 vs 2.63. The fair benchmark gives every model the same history at each origin.",
+     "cited": false
+    },
+    {
+     "id": "metric_r2",
+     "text": "Coefficient of Determination (R2): Proportion of variance in OT explained by the model. R² = 1 is perfect; R² = 0 means the model is no better than predicting the mean; R² < 0 means it is worse than predicting the mean. Formula: 1 - SS_res / SS_tot. Unit: —.",
+     "cited": false
+    },
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": false
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1259,
+    "cached_input": 0,
+    "output": 117
+   },
+   "cost_usd": 0.00025905,
+   "latency_ms": 2424.2
+  },
+  {
+   "question": "What will the stock market do tomorrow?",
+   "answer": "The context does not provide information about stock market predictions or forecasts. It focuses on the ETT forecasting benchmark dashboard, detailing model performance in predicting oil temperature. If you have questions about the ETT models or their rankings, feel free to ask!",
+   "images": [],
+   "tool_calls": [
+    {
+     "name": "retrieve_context",
+     "arguments": {
+      "top_k": 4
+     },
+     "ok": true
+    }
+   ],
+   "tool_results": [
+    {
+     "id": "fair_vs_original",
+     "text": "Why the original benchmark is not like-for-like: in the original single split, machine-learning models received lag features holding the true oil temperature of the previous hours at every test step (look-ahead), while statistical and deep models forecast the whole test period in one shot. Original RMSE vs fair rolling RMSE (°C): ARIMA 8.77 vs 2.33; CatBoost 0.74 vs 2.54; Holt-Winters 7.85 vs 1.91; LightGBM 0.75 vs 2.62; LSTM 5.33 vs 5.28; N-BEATS 4.36 vs 2.19; Prophet 4.03 vs 2.89; Random Forest 0.70 vs 2.31; XGBoost 0.76 vs 2.63. The fair benchmark gives every model the same history at each origin.",
+     "cited": false
+    },
+    {
+     "id": "fair_benchmark",
+     "text": "Fair rolling benchmark (ADR-008): every model forecasts the next 24 hours of oil temperature from the same history, at 145 test origins (71 validation origins chose the champions first). Ranked by test MASE:\n  1. Chronos-2 (foundation): test MASE 0.478, RMSE 1.627 °C, MAE 1.129 °C\n  2. Chronos-2 with covariates (foundation): test MASE 0.492, RMSE 1.675 °C, MAE 1.161 °C\n  3. Moirai-2.0 (foundation): test MASE 0.497, RMSE 1.663 °C, MAE 1.174 °C\n  4. TimesFM-2.5 (foundation): test MASE 0.506, RMSE 1.669 °C, MAE 1.195 °C\n  5. Holt-Winters (trained): test MASE 0.592, RMSE 1.910 °C, MAE 1.397 °C\n  6. N-BEATS (trained): test MASE 0.687, RMSE 2.190 °C, MAE 1.621 °C\n  7. Random Forest (trained): test MASE 0.725, RMSE 2.314 °C, MAE 1.710 °C\n  8. Same hour yesterday (baseline): test MASE 0.726, RMSE 2.237 °C, MAE 1.714 °C\n  9. ARIMA (trained): test MASE 0.750, RMSE 2.334 °C, MAE 1.770 °C\n  10. CatBoost (trained): test MASE 0.809, RMSE 2.536 °C, MAE 1.910 °C\n  11. XGBoost (trained): test MASE 0.844, RMSE 2.633 °C, MAE 1.993 °C\n  12. LightGBM (trained): test MASE 0.854, RMSE 2.623 °C, MAE 2.017 °C\n  13. Prophet (trained): test MASE 0.917, RMSE 2.885 °C, MAE 2.164 °C\n  14. Same hour last week (baseline): test MASE 1.220, RMSE 3.766 °C, MAE 2.881 °C\n  15. LSTM (trained): test MASE 1.864, RMSE 5.281 °C, MAE 4.399 °C\nChampions chosen on validation: Chronos-2 (foundation, zero-shot) and Holt-Winters (trained). Test MASE 0.478 vs 0.592: the foundation model's MASE is 19.2% lower; Diebold–Mariano (HLN) p = 1.1e-07 over 145 origins. Verdict: foundation model wins. Dropped: transformer (CPU retraining exceeded 2 hours (ADR-008 deviation)); tft (CPU retraining exceeded 2 hours (ADR-008 deviation)).",
+     "cited": false
+    },
+    {
+     "id": "dataset_overview",
+     "text": "ETT (Electricity Transformer Temperature), ETTh1: hourly readings, 17,420 rows, 2016–2018. Target OT is the transformer's oil temperature in °C; six load columns (HUFL, HULL, MUFL, MULL, LUFL, LULL). Source: github.com/zhouhaoyi/ETDataset (MIT licence); Zhou et al., AAAI 2021 (Informer).",
+     "cited": false
+    },
+    {
+     "id": "metric_r2",
+     "text": "Coefficient of Determination (R2): Proportion of variance in OT explained by the model. R² = 1 is perfect; R² = 0 means the model is no better than predicting the mean; R² < 0 means it is worse than predicting the mean. Formula: 1 - SS_res / SS_tot. Unit: —.",
+     "cited": false
+    }
+   ],
+   "steps": 1,
+   "model": "gpt-4o-mini",
+   "grounded": true,
+   "ungrounded_numbers": [],
+   "tokens": {
+    "input": 1261,
+    "cached_input": 0,
+    "output": 50
+   },
+   "cost_usd": 0.00021915,
+   "latency_ms": 1851.1
+  }
+ ],
+ "summary": {
+  "questions": 7,
+  "grounded": 7,
+  "cost_usd_total": 0.001974,
+  "cost_per_1000_usd": 0.282,
+  "latency_ms_p50": 2592.7,
+  "latency_ms_p95": 3734.0
+ }
+}

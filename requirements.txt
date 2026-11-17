@@ -5,7 +5,8 @@
 numpy>=1.24.0
 pandas>=2.0.0
 plotly>=5.14.0
-streamlit>=1.40.0
+streamlit>=1.66.0
 openai>=2.0.0
 scipy>=1.11.0
 statsmodels>=0.14.0
+pyyaml>=6.0

@@ -2,6 +2,14 @@
 
 Newest first. Each entry uses STAR (Situation, Task, Action, Result) so it can be told as a story.
 
+## [8.3.0] — 2026-11-18 — Dashboard without the owner's key (R26): replay by default, the viewer's own key optional
+**Files:** src/ui/dashboard.py, src/ui/meta.py (new, metadata moved out of the dashboard), src/ui/ask_ai.py (new), src/ui/showcase.py (new), src/ui/agent.py and src/ui/chat.py (new, shared with the other portfolio apps), src/ui/replays_ask_ai.json (new), scripts/record_app_replays.py (new), tests/test_streamlit_app.py (new), requirements.txt, requirements-streamlit.txt, .github/workflows/ci.yml, README.md
+- **Situation:** Ask AI and "Explain performance" read the owner's OpenAI key from Streamlit secrets, against R26; Ask AI's knowledge described only the original, not like-for-like benchmark (it said ML models dominate, RMSE 0.74–0.85).
+- **Task:** Remove the owner's key, show the assistant at $0, and make its answers agree with the fair benchmark.
+- **Action:** Knowledge base rebuilt from committed files with the fair rolling benchmark first and the original table labelled not like-for-like; retrieval always includes the fair result; 7 recorded answers replayed with sources, number check, cost and time; a bring-your-own-key live mode (also used by "Explain performance"); a showcase first screen; AppTest in CI on the deployed requirements.
+- **Result:** 7 of 7 recorded answers pass the number check; about $0.28 per 1,000 questions. Reading the first recording found two errors that were fixed in the instructions before release: a computed percentage (68.3%, caught by the number check) and Holt-Winters called "second-best" (it is the best trained model, fifth overall).
+- **Talking point:** "The assistant used to answer from the leaky benchmark; it now cites the fair one, and the app no longer spends our key."
+
 ## [8.2.0] — 2026-11-11 — Dashboard leads with the fair benchmark
 **Files:** src/ui/dashboard.py, docs/brief.yaml, README.md, docs/index.html, docs/build.html
 - **Situation:** The live dashboard still opened on the original, not like-for-like benchmark.
