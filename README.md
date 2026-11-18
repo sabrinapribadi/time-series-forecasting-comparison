@@ -280,7 +280,7 @@ Where GLU = Gated Linear Unit: `GLU(a,b) = a ⊙ σ(b)`. Implemented via Darts `
 - **Speed on a laptop CPU, per 24-hour forecast (p50):** Moirai-2.0 16 ms, Chronos-2 161 ms, TimesFM-2.5 353 ms; cost $0.
 - **Dropped:** Transformer and TFT (retraining exceeded 2 hours on CPU; logged in ADR-008 before any test score was read).
 
-**Free-tier limits (R20):** the Streamlit dashboard sleeps after 12 hours without traffic and any visitor can wake it; its first tab is the fair benchmark; the original one stays as a labelled tab. The static [results page](https://sabrinapribadi.github.io/time-series-forecasting-comparison/) is the fallback.
+**Free-tier limits (R20):** the Streamlit dashboard sleeps after 12 hours without traffic and any visitor can wake it; the fair benchmark has its own page; the original one stays as a labelled page. The static [results page](https://sabrinapribadi.github.io/time-series-forecasting-comparison/) is the fallback.
 
 <details><summary>Original benchmark (oracle lags, ADR-005): not like-for-like, kept for the record</summary>
 
@@ -397,7 +397,7 @@ time-series-forecasting-comparison/
 │   │   ├── window_features.py     # extract_window_features — 8 features from lookback
 │   │   └── model_selector.py      # BanditModelSelector — offline training + results dict
 │   ├── ui/
-│   │   └── dashboard.py           # Streamlit 7-tab dashboard (reads JSON only)
+│   │   └── dashboard.py           # Streamlit app, 9 pages on the shared frame (reads JSON only)
 │   └── utils.py                   # setup_logging, load_config, save_results
 ├── scripts/
 │   ├── download_data.py           # Download ETT CSVs from GitHub
@@ -472,21 +472,25 @@ PYTHONPATH=. poetry run streamlit run src/ui/dashboard.py
 
 Dashboard opens at `http://localhost:8502`.
 
-### Tabs
+### Pages
 
-| Tab | What it shows |
+Built on the portfolio's app template (rule R26 item 8): a sidebar with one button per page (each page linkable as `?page=`), at-a-glance stats and links; every page opens with the business question it answers, with the answer computed from the data.
+
+| Page | What it shows |
 |-----|--------------|
-| **Benchmark Results** | KPI cards, metric ranking bar chart, multi-metric radar chart, full metric table |
-| **Forecast Gallery** | Test-set overlay of all models on OT, family colour-coded, zoomable |
-| **Model Inspector** | Actual vs Predicted, residuals, error histogram, scatter + **Overfitting Diagnostic** (Train vs Test RMSE gap) + Feature Importance + SHAP beeswarm (ML) + **AI Explainability** (Statistical/DL) |
-| **Data Explorer** | ETT raw signal (all 7 columns), summary statistics, Pearson correlation heatmap |
-| **Statistical Tests** | Stationarity (ADF+KPSS), ACF/PACF, Granger Causality, Diebold-Mariano — each with contextual interpretation cards |
-| **Ask AI (RAG)** | GPT-4o mini assistant with keyword-retrieval over benchmark data and model metadata; quick-question buttons auto-send |
-| **RL Selector** | **LinUCB contextual bandit** trained offline on 145 × 24-hour windows; cumulative regret chart (bandit vs static best vs random, 80% improvement); arm selection pie; per-window RMSE comparison; selection history scatter; arm summary table; **What-If Predictor** (volatility/trend/autocorr/skewness sliders → model recommendation + UCB score bar chart) |
+| **Overview** | Fair-benchmark results (Chronos-2 vs Holt-Winters), the 5W1H brief and a card per page |
+| **Explore the data** | ETT raw signal (all 7 columns), summary statistics, Pearson correlation heatmap |
+| **Fair benchmark** | Every model from the same history at 145 daily start points, ranked by MASE (ADR-008); one test day's forecasts |
+| **Forecast gallery** | Original single-split forecasts against the real temperature, family colour-coded, zoomable |
+| **Model inspector** | Actual vs predicted, residuals, error histogram, overfitting diagnostic, feature importance, SHAP (ML) and **AI Explainability** with the viewer's own key |
+| **Statistical tests** | Stationarity (ADF+KPSS), ACF/PACF, Granger causality, Diebold-Mariano, each with an interpretation card |
+| **Original benchmark** | The first single-split table, kept for the record and labelled not like-for-like |
+| **RL model selector** | **LinUCB contextual bandit** over 145 × 24-hour windows on the original split; against always one model and a perfect daily pick; what-if predictor |
+| **AI Assistant** | Keyword retrieval over committed results (fair benchmark first) with cited answers; replay by default, the viewer's own key optional |
 
 ### AI Explainability
 
-The **Model Inspector** tab includes an AI Explainability button powered by GPT-4o mini. For any selected model it generates a plain-language diagnosis covering:
+The **Model inspector** page includes an AI Explainability button powered by GPT-4o mini, run on the viewer's own key (entered on the AI Assistant page). For any selected model it generates a plain-language diagnosis covering:
 
 - Why the model achieves the RMSE it does (linked to algorithm mechanics)
 - What residual statistics reveal about its failure modes (bias, autocorrelation)
@@ -494,7 +498,7 @@ The **Model Inspector** tab includes an AI Explainability button powered by GPT-
 
 ### Ask AI (RAG)
 
-The **Ask AI** tab uses keyword retrieval over a knowledge base built from committed files (`src/ui/ask_ai.py`): the fair rolling benchmark first, the original table labelled not like-for-like, model descriptions and metric formulas. It opens in **replay** mode (recorded answers, free); a viewer can switch to **live** and paste their own OpenAI key, kept in their session only. The app holds no key of ours.
+The **AI Assistant** page uses keyword retrieval over a knowledge base built from committed files (`src/ui/ask_ai.py`): the fair rolling benchmark first, the original table labelled not like-for-like, model descriptions and metric formulas. It opens in **replay** mode (recorded answers, free); a viewer can switch to **live** and paste their own OpenAI key, kept in their session only. The app holds no key of ours.
 
 ### Streamlit Cloud Deployment
 

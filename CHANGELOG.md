@@ -2,6 +2,14 @@
 
 Newest first. Each entry uses STAR (Situation, Task, Action, Result) so it can be told as a story.
 
+## [8.4.0] — 2026-11-18 — App template v2: sidebar pages, a business question per page
+**Files:** src/ui/dashboard.py, src/ui/showcase.py, src/ui/frame.py (new, shared), tests/test_streamlit_app.py, README.md
+- **Situation:** The user wanted every Streamlit app to combine the older dashboards' structure (sidebar pages: a real use case, EDA, an AI assistant; a business question on every view) with the newer apps' 5W1H brief and KPI first screen.
+- **Task:** Rebuild this app on one shared template (R26 item 8) and check every page against the data before release.
+- **Action:** The eight tabs became nine sidebar pages on the shared `frame.py` (Overview first); each page's answer computed from committed results; the viewer's key kept across pages for the inspector's Explain button.
+- **Result:** 7 app tests pass. Checking the pages replaced a false correlation caption (it claimed load and oil temperature correlate above 0.7; the data gives at most 0.22) with computed values, made the actual-temperature line visible on dark, and corrected a docstring that named the wrong model provider.
+- **Talking point:** "Every portfolio app now reads the same way: what it is for, the data, the use case, then an assistant; and every page answers a business question from the data."
+
 ## [8.3.0] — 2026-11-18 — Dashboard without the owner's key (R26): replay by default, the viewer's own key optional
 **Files:** src/ui/dashboard.py, src/ui/meta.py (new, metadata moved out of the dashboard), src/ui/ask_ai.py (new), src/ui/showcase.py (new), src/ui/agent.py and src/ui/chat.py (new, shared with the other portfolio apps), src/ui/replays_ask_ai.json (new), scripts/record_app_replays.py (new), tests/test_streamlit_app.py (new), requirements.txt, requirements-streamlit.txt, .github/workflows/ci.yml, README.md
 - **Situation:** Ask AI and "Explain performance" read the owner's OpenAI key from Streamlit secrets, against R26; Ask AI's knowledge described only the original, not like-for-like benchmark (it said ML models dominate, RMSE 0.74–0.85).

@@ -1,15 +1,11 @@
 """
-Time Series Forecasting Benchmark Dashboard
+Time Series Forecasting Benchmark Dashboard (R26, app template v2: shared frame, sidebar pages, a business question per page)
 
 Reads pre-computed results from data/forecasts/ETT/*.json.
-No model weights or raw data required at runtime (ETT CSVs used only in Data Explorer).
+No model weights or raw data required at runtime (ETT CSVs used only in Explore the data and Statistical tests).
 
-Tabs:
-  1. Benchmark Results  -- KPI cards, metric table, ranked bar chart, radar chart
-  2. Forecast Gallery   -- test-set overlay with zoom and family colouring
-  3. Model Inspector    -- residuals, error distribution, metric deep-dive
-  4. Data Explorer      -- ETT dataset visualisation, correlation, seasonality
-  5. Ask AI             -- RAG assistant powered by Claude (Anthropic API)
+Pages: Overview · Explore the data · Fair benchmark · Forecast gallery · Model inspector · Statistical tests ·
+Original benchmark (not like-for-like) · RL model selector · AI Assistant (gpt-4o-mini retrieval; replay by default, the viewer's own key).
 """
 
 from __future__ import annotations
@@ -314,24 +310,40 @@ available_metrics = [m for m in ["RMSE", "MAE", "MAPE", "SMAPE", "MASE", "R2"]
 best_model_key = metrics_df["RMSE"].idxmin() if "RMSE" in metrics_df.columns else None
 
 # ---------------------------------------------------------------------------
-# Sidebar
+# Pages and sidebar (shared app frame, R26: brand, pages, at-a-glance stats, filters, links)
 # ---------------------------------------------------------------------------
 
-with st.sidebar:
-    # Header
-    st.markdown("""
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:0.5rem;">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="#4C8BF5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <div>
-        <div style="font-size:1rem; font-weight:700; color:#E6EDF3; line-height:1.2;">ETT Forecasting</div>
-        <div style="font-size:0.72rem; color:#8B949E; letter-spacing:0.05em;">BENCHMARK DASHBOARD</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+import frame as F  # noqa: E402  (shared app frame, identical in every portfolio app)
+import showcase  # noqa: E402
 
-    st.divider()
+F.setup(st, accent="#79C0FF")
+PAGES = [
+    F.Page("overview", "Overview", ":material/home:", "The results, the brief and where to start."),
+    F.Page("explore", "Explore the data", ":material/query_stats:",
+           "The raw ETT readings: oil temperature and six load columns, their daily and weekly patterns and how they move together."),
+    F.Page("fair", "Fair benchmark", ":material/balance:",
+           "Every model forecasts the next 24 hours from the same history at 145 daily start points; ranked by MASE (ADR-008)."),
+    F.Page("gallery", "Forecast gallery", ":material/show_chart:",
+           "Forecasts against the real temperature, hour by hour, for the models picked in the sidebar (original single split)."),
+    F.Page("inspector", "Model inspector", ":material/biotech:",
+           "One model at a time: its errors over time, residuals, feature importance and a plain-English explanation."),
+    F.Page("tests", "Statistical tests", ":material/functions:",
+           "Stationarity, Granger causality, autocorrelation and Diebold–Mariano tests: which differences are real."),
+    F.Page("original", "Original benchmark", ":material/history:",
+           "The first single-split table, kept for the record: machine-learning models saw the true previous values (not like-for-like)."),
+    F.Page("rl", "RL model selector", ":material/casino:",
+           "A contextual bandit that picks a model for each 24-hour window, against always using one model and a perfect daily pick."),
+    F.Page("agent", "AI Assistant", ":material/smart_toy:",
+           "Ask about the models, the fair benchmark or the data: recorded answers replay for free with cited sources; your own key runs it live."),
+]
+F.keep(st, ["ask_byo_key", "ask_chat_mode"])          # the viewer's key (session only) also serves the inspector's Explain button
+page = F.navigate(st, PAGES, brand="Forecasting benchmark", tagline="15 methods, one fair 24-hour test", icon="〜")
+_h = showcase.headline()
+F.sidebar_stats(st, [(f"{_h['mase_f']:.3f}", "Chronos-2 MASE, zero-shot"), (f"{_h['mase_t']:.3f}", "Holt-Winters MASE, best trained"),
+                     (f"{_h['origins']}", "daily test forecasts"), (f"{_h['methods']}", "methods on the fair test")])
+
+with st.sidebar:
+    F.sidebar_label(st, "Filters (original-split pages)")
 
     # -- Filter: Model Families --
     with st.expander("Model Families", expanded=True):
@@ -409,14 +421,14 @@ with st.sidebar:
         > OT reflects thermal stress on the transformer, driven by aggregate electrical load.
         """)
 
-    st.divider()
-    st.caption("v2.0 · July 2026 · Sabrina Pribadi")
 
 # ---------------------------------------------------------------------------
 # Filter DataFrames
 # ---------------------------------------------------------------------------
 
 sel_df = metrics_df.loc[metrics_df.index.isin(selected_keys)].copy()
+F.sidebar_footer(st, {"Results page": showcase.PAGES, "Walkthrough": showcase.PAGES + "build.html", "Source": showcase.REPO},
+                 "Data: ETT (Electricity Transformer Temperature), ETTh1, Zhou et al. 2021, MIT licence.")
 
 # ---------------------------------------------------------------------------
 # Tab layout
@@ -425,20 +437,10 @@ sel_df = metrics_df.loc[metrics_df.index.isin(selected_keys)].copy()
 import agent as _agent_engine  # noqa: E402  (shared chat engine: key redaction)
 import ask_ai  # noqa: E402
 import chat  # noqa: E402
-import showcase  # noqa: E402
 
-showcase.render(st)                                  # R22, R26 item 7: results and the brief on the first screen
-
-tab0, tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-    "Fair benchmark (ADR-008)",
-    "Original benchmark (not like-for-like)",
-    "Forecast Gallery",
-    "Model Inspector",
-    "Data Explorer",
-    "Statistical Tests",
-    "Ask AI",
-    "RL Selector",
-])
+if page.key == "overview":                           # R22, R26 item 7: results and the brief on the first screen
+    showcase.render(st)
+    F.use_cards(st, PAGES)
 
 
 # ===========================================================================
@@ -461,8 +463,14 @@ def load_fair() -> tuple[dict, dict, dict]:
     return summary, ch, hw
 
 
-with tab0:
-    st.markdown("## Fair benchmark: same history for every model")
+if page.key == "fair":
+    _fs = json.loads((ROLLING_DIR / "summary.json").read_text())
+    _g = _fs["gate"]
+    F.header(st, PAGES[2], "Which model should we run in production?",
+             f"**{FAIR_NAMES.get(_g['foundation_champion'])}**, zero-shot: test MASE {_g['test_mase'][_g['foundation_champion']]:.3f}, "
+             f"{_g['foundation_lower_by']:.0%} lower than the best trained model, {FAIR_NAMES.get(_g['trained_champion'])} "
+             f"({_g['test_mase'][_g['trained_champion']]:.3f}); Diebold–Mariano p = {_g['dm_hln']['p']:.0e} over {_g['dm_hln']['n']} forecasts. "
+             f"Verdict, set before any run: {_g['verdict']}.")
     st.markdown(
         '<div class="context-card">'
         "Every model forecasts the next 24 hours from earlier readings only, at 145 daily start points (Feb–Jun 2018). "
@@ -497,7 +505,7 @@ with tab0:
             o = fch["origins"][day]
             seg = ett.iloc[o:o + 24]
             fig2 = go.Figure()
-            fig2.add_scatter(x=seg["date"], y=seg["OT"], name="Actual", line=dict(color="#1d1f21", width=2.5))
+            fig2.add_scatter(x=seg["date"], y=seg["OT"], name="Actual", line=dict(color="#E6EDF3", width=2.5))
             fig2.add_scatter(x=seg["date"], y=fch["y_pred"][day], name="Chronos-2 (zero-shot)", line=dict(color="#0f6e74", dash="dash"))
             fig2.add_scatter(x=seg["date"], y=fhw["y_pred"][day], name="Holt-Winters (best trained)", line=dict(color="#b06a1f", dash="dash"))
             fig2.update_layout(height=340, margin=dict(l=10, r=10, t=10, b=10), yaxis_title="Oil temperature (°C)", hovermode="x unified")
@@ -505,7 +513,7 @@ with tab0:
         st.markdown(
             f"- **Pass mark met:** {100 * fg['foundation_lower_by']:.1f}% lower error (bar 5%), Diebold–Mariano p = {fg['dm_hln']['p']:.0e}, "
             f"and lower on the last 41 days ({fg['clean_tail_mase']['chronos2']:.3f} vs {fg['clean_tail_mase']['holt_winters']:.3f}).\n"
-            "- **Why the original tab differs:** it gave ML the true past values at every hour; without them, ML errors grow 3.3–3.5×.\n"
+            "- **Why the original benchmark differs:** it gave ML the true past values at every hour; without them, ML errors grow 3.3–3.5×.\n"
             "- **Dropped:** Transformer and TFT (CPU retraining exceeded 2 hours; logged in ADR-008)."
         )
 
@@ -513,10 +521,12 @@ with tab0:
 # TAB 1 — Original benchmark (oracle lags, not like-for-like)
 # ===========================================================================
 
-with tab1:
-    # Header
-    st.markdown("## Original benchmark (not like-for-like)")
-    st.warning("Kept for the record. ML models here received the true past values at every hour (ADR-005); see the Fair benchmark tab.")
+if page.key == "original":
+    _ovr = json.loads((ROLLING_DIR / "summary.json").read_text())["old_vs_rolling"]["random_forest"]
+    F.header(st, PAGES[6], "Why did machine-learning models look best in the original benchmark?",
+             f"They were given the true previous hours at every step (look-ahead). Random Forest scored RMSE {_ovr['old_rmse']:.2f} °C here "
+             f"and {_ovr['rolling_rmse']:.2f} °C in the fair test. Use the Fair benchmark page to choose a model.")
+    st.warning("Kept for the record. ML models here received the true past values at every hour (ADR-005); see the Fair benchmark page.")
     st.markdown(
         '<div class="context-card">'
         "All 11 models trained on <strong>ETTh1</strong> (17,420 hourly observations, 2016–2018). "
@@ -701,8 +711,12 @@ with tab1:
 # TAB 2 — Forecast Gallery
 # ===========================================================================
 
-with tab2:
-    st.markdown("## Forecast Gallery")
+if page.key == "gallery":
+    _best = sel_df["RMSE"].idxmin() if "RMSE" in sel_df.columns and not sel_df.empty else None
+    F.header(st, PAGES[3], "Do the forecasts follow the real temperature hour by hour?",
+             (f"Of the models picked, {sel_df.loc[_best, 'Model']} tracks closest here (RMSE {sel_df.loc[_best, 'RMSE']:.2f} °C), but these are "
+              "original single-split forecasts in which machine-learning models saw the true previous values; choose with the Fair benchmark page.")
+             if _best else "Pick at least one model in the sidebar.")
     st.markdown(
         '<div class="context-card">'
         "Test set predictions (last 20% of ETTh1 = <strong>3,484 hourly steps ≈ 145 days</strong>). "
@@ -800,8 +814,10 @@ with tab2:
 # TAB 3 — Model Inspector
 # ===========================================================================
 
-with tab3:
-    st.markdown("## Model Inspector")
+if page.key == "inspector":
+    F.header(st, PAGES[4], "How does one model behave, and where does it miss?",
+             f"Choose one of the {len(selected_keys)} models with the control on the left: its errors over time, residuals and what drives it. "
+             "Original single-split results; for ranking, use the Fair benchmark page.")
 
     # Golden ratio: inspector controls left [1], charts right [φ] ≈ [1, 1.618]
     ctrl_col, detail_col = st.columns([1, PHI])
@@ -1198,10 +1214,10 @@ with tab3:
             _show_ai_btn = (sel_model_key not in ML_MODELS_SET) or not _shap_json_path.exists()
 
             # Gather AI key
-            _ai_key = st.session_state.get("ask_byo_key") or None     # R26: only the viewer's own key, entered in Ask AI (Live)
+            _ai_key = st.session_state.get("ask_byo_key") or None     # R26: only the viewer's own key, entered on the AI Assistant page (Live)
 
             if _show_ai_btn and not _ai_key:
-                st.caption("AI explanations run on your own OpenAI key: open **Ask AI**, choose Live and enter it; it stays in this session only.")
+                st.caption("AI explanations run on your own OpenAI key: open **AI Assistant**, choose Live and enter it; it stays in this session only.")
 
             if _show_ai_btn and _ai_key:
                 explain_btn = st.button(
@@ -1274,8 +1290,15 @@ with tab3:
 # TAB 4 — Data Explorer
 # ===========================================================================
 
-with tab4:
-    st.markdown("## Data Explorer")
+if page.key == "explore":
+    _ett = load_ett_data("h1")
+    if _ett is not None and "OT" in _ett.columns:
+        _r24, _r168 = _ett["OT"].autocorr(24), _ett["OT"].autocorr(168)
+        _ans = (f"{len(_ett):,} hourly readings of oil temperature (OT) and six load columns. OT one day apart correlates at "
+                f"r = {_r24:.2f} and one week apart at r = {_r168:.2f}, so 'same hour yesterday' is a hard yardstick: MASE below 1 beats it.")
+    else:
+        _ans = "The ETT data file is not available in this deployment."
+    F.header(st, PAGES[1], "What does the transformer's oil temperature look like, and what moves it?", _ans)
     st.markdown(
         '<div class="context-card">'
         "Visualise the raw ETT dataset: all 7 measurement columns and the OT target. "
@@ -1364,11 +1387,13 @@ with tab4:
 
         # Correlation heatmap
         st.markdown("#### Feature Correlation Matrix")
+        _oc = ett_df[num_cols].corr()["OT"].drop("OT")
+        _lc = ett_df[["HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL"]].corr().where(lambda m: ~np.eye(6, dtype=bool)).abs().max().max()
         st.markdown(
             '<div class="context-card" style="font-size:0.80rem;">'
-            "Pearson correlation between all 7 features. Strong positive correlation (>0.7) "
-            "between load columns and OT confirms that load features are informative covariates "
-            "for the multivariate forecasting mode."
+            f"Pearson correlation between all 7 columns. Oil temperature moves only weakly with any single load column at the same hour "
+            f"(strongest: {_oc.abs().idxmax()}, r = {_oc[_oc.abs().idxmax()]:.2f}), while some load columns move almost together "
+            f"(up to |r| = {_lc:.2f}). This matrix measures same-hour links only, not delayed effects."
             "</div>",
             unsafe_allow_html=True,
         )
@@ -1427,7 +1452,7 @@ with tab4:
             "The correlation matrix shows MUFL–HUFL ≈ 0.99 and MULL–HULL ≈ 0.93: high and mid-voltage "
             "useful loads are nearly identical, suggesting the same aggregate load measured at two points. "
             "OT's low correlation with all load columns (0.05–0.22) is because temperature "
-            "accumulates thermally with a time lag — the Granger causality test (Statistical Tests tab) "
+            "accumulates thermally with a time lag — the Granger causality test (Statistical tests page) "
             "reveals the true temporal relationship."
             "</div>",
             unsafe_allow_html=True,
@@ -1437,8 +1462,11 @@ with tab4:
 # TAB 5 — Statistical Tests
 # ===========================================================================
 
-with tab5:
-    st.markdown("## Statistical Tests")
+if page.key == "tests":
+    _dm = json.loads((ROLLING_DIR / "summary.json").read_text())["gate"]["dm_hln"]
+    F.header(st, PAGES[5], "Are the differences between models real, or noise?",
+             f"The headline one is real: Chronos-2 vs Holt-Winters, Diebold–Mariano (HLN) p = {_dm['p']:.0e} over {_dm['n']} daily forecasts. "
+             "Below: stationarity, Granger causality and autocorrelation of the target, and pairwise tests on the original split.")
     st.markdown(
         '<div class="context-card">'
         "Rigorous statistical analysis of the ETT dataset and benchmark results. "
@@ -1884,8 +1912,12 @@ with tab5:
 # TAB 6 — Ask AI (RAG)  [was tab5]
 # ===========================================================================
 
-with tab6:
-    st.markdown("## Ask AI")
+if page.key == "agent":
+    _rec = json.loads((Path(__file__).resolve().parent / "replays_ask_ai.json").read_text())["runs"]
+    F.header(st, PAGES[8], "Can I ask about the benchmark in plain words?",
+             f"Yes. The assistant answers from this project's committed results, fair benchmark first, and cites each source; "
+             f"{sum(r['grounded'] for r in _rec)} of {len(_rec)} recorded answers pass the number check. Replay is free; with your own "
+             "OpenAI key you can ask anything, 10 questions per session, and the key is never stored.")
     st.markdown(
         '<div class="context-card">'
         "Ask about the models, the fair benchmark or the dataset. The assistant retrieves context from this project's committed "
@@ -1900,8 +1932,8 @@ with tab6:
 # TAB 7 — RL Selector (LinUCB contextual bandit)
 # ===========================================================================
 
-with tab7:
-    st.markdown("## RL Model Selector — LinUCB Contextual Bandit")
+if page.key == "rl":
+    _rl_head = st.container()                        # filled once the bandit has run
     st.markdown(
         '<div class="context-card">'
         "A <strong>contextual bandit</strong> (LinUCB) learns which of the 11 forecasting models "
@@ -1957,6 +1989,10 @@ Each model is an **arm**. At every 24-hour window the bandit:
             return {"error": str(_e)}
 
     rl = _run_bandit(str(FORECAST_DIR), rl_alpha)
+    F.header(_rl_head, PAGES[7], "Could picking a model for each day beat one model for every day?",
+             (f"On the original split (not like-for-like): the bandit averages RMSE {rl['bandit_avg_rmse']:.3f} °C per window, against "
+              f"{rl['static_best_avg_rmse']:.3f} °C for always using {MODEL_DISPLAY.get(rl['static_best_name'], rl['static_best_name'])} and "
+              f"{rl['oracle_avg_rmse']:.3f} °C for a perfect daily pick.") if "error" not in rl else f"The bandit could not run here ({rl['error']}).")
 
     if "error" in rl:
         st.error(f"Bandit training failed: {rl['error']}")

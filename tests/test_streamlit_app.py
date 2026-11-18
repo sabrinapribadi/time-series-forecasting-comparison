@@ -22,8 +22,12 @@ def _no_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
 
-def app():
+PAGES = ["overview", "explore", "fair", "gallery", "inspector", "tests", "original", "rl", "agent"]
+
+
+def app(page="overview"):
     at = AppTest.from_file(APP, default_timeout=180)
+    at.session_state["page"] = page
     at.run()
     assert not at.exception, at.exception
     return at
@@ -34,6 +38,16 @@ def test_first_screen_reports_the_fair_benchmark():
     h = showcase.headline()
     assert [m.value for m in at.metric][:2] == [f"{h['mase_f']:.3f}", f"{h['mase_t']:.3f}"]
     assert any("12 hours" in c.value for c in at.caption)
+    body = " ".join(e.proto.body for e in at.get("html"))
+    for w in ["What", "Why", "Who", "Where", "When it fails", "How"]:          # the 5W1H brief (R22)
+        assert f'class="f-w">{w}<' in body, w
+    assert [b.key for b in at.sidebar.button] == [f"nav_{k}" for k in PAGES]
+
+
+def test_every_page_opens_with_its_business_question():
+    for key in PAGES[1:]:
+        at = app(key)
+        assert "Business question" in " ".join(e.proto.body for e in at.get("html")), key
 
 
 def test_knowledge_leads_with_the_fair_benchmark():
@@ -53,7 +67,7 @@ def test_replays_recorded_grounded_and_keyless():
 
 
 def test_ask_ai_replay_and_live_stub(monkeypatch):
-    at = app()
+    at = app("agent")
     assert at.radio(key="ask_chat_mode").value.startswith("Replay")
     run = json.loads((UI / "replays_ask_ai.json").read_text())["runs"][0]
     at.selectbox(key="ask_replay_pick").set_value(run["question"]).run()
@@ -66,7 +80,7 @@ def test_ask_ai_replay_and_live_stub(monkeypatch):
         seen["key"] = k
         return {**run, "question": question, "answer": "Live answer."}
     monkeypatch.setattr(ask_ai, "live", fake)
-    at = app()
+    at = app("agent")
     at.radio(key="ask_chat_mode").set_value("Live: use your own OpenAI key").run()
     at.text_input(key="ask_byo_key").input(key).run()
     at.chat_input(key="ask_live_input").set_value("Anything").run()
@@ -78,3 +92,9 @@ def test_ask_ai_replay_and_live_stub(monkeypatch):
 def test_no_owner_key_is_read():
     src = (UI / "dashboard.py").read_text()
     assert "st.secrets" not in src and "OPENAI_API_KEY" not in src
+
+
+def test_frame_is_the_shared_copy():
+    """The app frame is identical in every portfolio app; change it everywhere at once (checksum of the shared copy)."""
+    import hashlib
+    assert hashlib.sha256((UI / "frame.py").read_bytes()).hexdigest()[:16] == "385e92329f20405a"
